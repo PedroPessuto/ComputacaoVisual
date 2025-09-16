@@ -11,22 +11,40 @@
 int main(int argc,char* argv[])
 {
 
+  // Verifica se o numero de argumentos da linha de comando esta correto.
   if(argc != 2){
     fprintf(stderr, "Uso correto: %s <caminho_para_imagem.ext>\n", argv[0]);
     return 1;
   }
 
+  // Armazena o caminho da imagem do segundo argumento (argv[1]).
   const char* image_path = argv[1];
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
+  // Inicializa a biblioteca SDL, especificamente o subsistema de video.
   if(SDL_Init(SDL_INIT_VIDEO) != 0){
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
     return 1;
   }
 
-  printf("SDL inicializada com sucesso.\n");
+  printf("Carregando a imagem de: %s\n", image_path);
 
-  IMG_Quit();
+  // Tenta carregar a imagem do caminho especificado para uma superficie na memoria.
+  SDL_Surface* image_surface = IMG_Load(image_path);
+
+  // Trata erro no carregamento da imagem (ex: arquivo nao encontrado, formato invalido).
+  if(image_surface == NULL){
+    fprintf(stderr, "Erro ao carregar a imagem: %s\n", IMG_GetError());
+
+    SDL_Quit();
+    return 1;
+  }
+
+  printf("Imagem carregada com sucesso. Deminsoes: %d x %d\n", image_surface->w, image_surface->h);
+
+  // Libera os recursos alocados antes de finalizar o programa.
+  SDL_DestroySurface(image_surface);
+
   SDL_Quit();
 
   printf("Programa finalizado com sucesso.\n");
