@@ -1,3 +1,13 @@
+# Editor/IDE specific files
+.vscode/
+
+# Project-specific output files
+output_image.png
+
+# Build directories
+build/
+bin/
+
 # Prerequisites
 *.d
 
