@@ -22,7 +22,7 @@ int main(int argc,char* argv[])
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
   // Inicializa a biblioteca SDL, especificamente o subsistema de video.
-  if(SDL_Init(SDL_INIT_VIDEO) != 0){
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
     return 1;
   }
@@ -34,13 +34,12 @@ int main(int argc,char* argv[])
 
   // Trata erro no carregamento da imagem (ex: arquivo nao encontrado, formato invalido).
   if(image_surface == NULL){
-    fprintf(stderr, "Erro ao carregar a imagem: %s\n", IMG_GetError());
-
+    fprintf(stderr, "Erro ao carregar a imagem: %s\n", SDL_GetError());
     SDL_Quit();
     return 1;
   }
 
-  printf("Imagem carregada com sucesso. Deminsoes: %d x %d\n", image_surface->w, image_surface->h);
+  printf("Imagem carregada com sucesso. Dimensoes: %d x %d\n", image_surface->w, image_surface->h);
 
   // Libera os recursos alocados antes de finalizar o programa.
   SDL_DestroySurface(image_surface);
