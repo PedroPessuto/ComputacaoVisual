@@ -15,6 +15,8 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface);
 static SDL_Window* create_main_window(SDL_Surface *image_surface);
 static SDL_Renderer* create_renderer(SDL_Window *window);
 static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface);
+static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, int height);
+static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window);
 
 int main(int argc, char *argv[])
 {
@@ -104,6 +106,29 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  //3.2 Criar Janela Secundaria
+
+  SDL_Window *secondary_window = create_secondary_window(window, 400, 400);
+  if(!secondary_window){
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_DestroySurface(image_surface);
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_Renderer *secondary_renderer = create_secondary_renderer(secondary_window);
+  if(!secondary_renderer){
+    SDL_DestroyWindow(secondary_window);
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_DestroySurface(image_surface);
+    SDL_Quit();
+    return 1;
+  }
+
   //Loop de eventos para exibir a imagem
 
   bool running = true;
@@ -120,6 +145,10 @@ int main(int argc, char *argv[])
     SDL_RenderClear(renderer);
     SDL_RenderTexture(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
+
+    SDL_SetRenderDrawColor(secondary_renderer, 150, 150, 150, 255);
+    SDL_RenderClear(secondary_renderer);
+    SDL_RenderPresent(secondary_renderer);
   }
   
 
@@ -128,6 +157,8 @@ int main(int argc, char *argv[])
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_DestroySurface(image_surface);
+  SDL_DestroyRenderer(secondary_renderer);
+  SDL_DestroyWindow(secondary_window);
   SDL_Quit();
 
   printf("Programa finalizado com sucesso.\n");
@@ -296,4 +327,29 @@ static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surf
     return NULL;
   }
   return texture;
+}
+
+static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, int height){
+  int main_x, main_y, main_w, main_h;
+  SDL_GetWindowPosition(main_window, &main_x, &main_y);
+  SDL_GetWindowSize(main_window, &main_w, &main_h);
+
+  SDL_Window *window = SDL_CreateWindow("Janela Secundaria", width, height, 0);
+  if(!window){
+    fprintf(stderr, "Falha ao criar janela secundaria: %s\n", SDL_GetError());
+    return NULL;
+  }
+
+  //Desloca 10px da principal
+  SDL_SetWindowPosition(window, main_x + main_w + 10, main_y);
+  return window;
+}
+
+static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window){
+  SDL_Renderer *renderer = SDL_CreateRenderer(secondary_window, NULL);
+  if(!renderer){
+    fprintf(stderr, "Falha ao criar renderer da janela secundaria: %s\n", SDL_GetError());
+    return NULL;
+  }
+  return renderer;
 }
