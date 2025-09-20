@@ -12,6 +12,9 @@
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
 static SDL_Surface *convert_grayscale(SDL_Surface *surface);
+static SDL_Window* create_main_window(SDL_Surface *image_surface);
+static SDL_Renderer* create_renderer(SDL_Window *window);
+static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface);
 
 int main(int argc, char *argv[])
 {
@@ -75,7 +78,55 @@ int main(int argc, char *argv[])
 
   // TODO: etapas seguintes (GUI, histograma, etc.)
 
+  //3.1 Criar janela principal
+
+  SDL_Window *window = create_main_window(image_surface);
+  if(!window){
+    SDL_DestroySurface(image_surface);
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_Renderer *renderer = create_renderer(window);
+  if(!renderer){
+    SDL_DestroyWindow(window);
+    SDL_DestroySurface(image_surface);
+    SDL_Quit();
+    return 1;
+  }
+
+  SDL_Texture *texture = create_texture_from_surface(renderer, image_surface);
+  if(!texture){
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_DestroySurface(image_surface);
+    SDL_Quit();
+    return 1;
+  }
+
+  //Loop de eventos para exibir a imagem
+
+  bool running = true;
+  while(running){
+    SDL_Event e;
+    while(SDL_PollEvent(&e)){
+      if(e.type == SDL_EVENT_QUIT){
+        running = false;
+      }else if(e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE){
+        running = false;
+      }
+    }
+
+    SDL_RenderClear(renderer);
+    SDL_RenderTexture(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+  }
+  
+
   // Libera os recursos alocados antes de finalizar o programa.
+  SDL_DestroyTexture(texture);
+  SDL_DestroyRenderer(renderer);
+  SDL_DestroyWindow(window);
   SDL_DestroySurface(image_surface);
   SDL_Quit();
 
@@ -211,4 +262,38 @@ done:
     SDL_UnlockSurface(surface);
 
   return grayscale;
+}
+
+static SDL_Window* create_main_window(SDL_Surface *image_surface){
+  SDL_Window *window = SDL_CreateWindow(
+    "Janela Principal",
+    image_surface->w,
+    image_surface->h,
+    0
+  );
+SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+
+  if(!window){
+    fprintf(stderr, "Falha ao criar janela principal: %s\n", SDL_GetError());
+    return NULL;
+  }
+  return window;
+}
+
+static SDL_Renderer* create_renderer(SDL_Window *window){
+  SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
+  if(!renderer){
+    fprintf(stderr, "Falha ao criar renderer: %s\n", SDL_GetError());
+    return NULL;
+  }
+  return renderer;
+}
+
+static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface){
+  SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+  if(!texture){
+    fprintf(stderr, "Falha ao criar textura: %s\n", SDL_GetError());
+    return NULL;
+  }
+  return texture;
 }
