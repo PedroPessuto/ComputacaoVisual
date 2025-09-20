@@ -52,20 +52,30 @@ int main(int argc, char *argv[])
   // 2.1) É colorida ou esacala de cinza?
   bool is_gray = false;
   SDL_Palette *palette = SDL_GetSurfacePalette(image_surface);
+  SDL_Surface *converted = NULL;
 
-  if (palette)
+  if (!palette)
   {
-    is_gray = is_palette_grayscale(palette);
-    printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
-  }
-  else
-  {
-    printf("Deu ruim ao pegar a paleta da imagem\n");
+    // Conversão para 8 bits (INDEX8) para garantir que tenha paleta
+    converted = SDL_ConvertSurface(image_surface, SDL_PIXELFORMAT_INDEX8);
+    palette = SDL_GetSurfacePalette(converted);
+
+    if (palette && converted)
+    {
+      is_gray = is_palette_grayscale(palette);
+      printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
+    }
+    else
+    {
+      printf("Deu ruim ao pegar a paleta da imagem\n");
+    }
   }
 
   // 2.2) TO DO
 
   // Libera os recursos alocados antes de finalizar o programa.
+  if (converted)
+    SDL_DestroySurface(converted);
   SDL_DestroySurface(image_surface);
   SDL_Quit();
 
