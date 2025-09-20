@@ -133,6 +133,7 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface)
       }
 
       const float grayf = 0.2126f * (float)r + 0.7152f * (float)g + 0.0722f * (float)b;
+      // Aredondamento para inteiro sem truncamento para baixo
       const Uint8 gray = (Uint8)(grayf + 0.5f);
 
       if (!SDL_WriteSurfacePixel(dst, x, y, gray, gray, gray, a))
