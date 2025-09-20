@@ -11,6 +11,7 @@
 
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
+static SDL_Surface *convert_grayscale(SDL_Surface *surface);
 
 int main(int argc, char *argv[])
 {
@@ -55,8 +56,18 @@ int main(int argc, char *argv[])
   printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
 
   // 2.2) TO DO
+  SDL_Surface *gray_image = convert_grayscale(image_surface);
+  if (!gray_image)
+  {
+    fprintf(stderr, "Não foi possivel converter %s\n", SDL_GetError());
+  }
+  else
+  {
+    printf("Deu certo\n");
+  }
 
   // Libera os recursos alocados antes de finalizar o programa.
+  SDL_DestroySurface(gray_image);
   SDL_DestroySurface(image_surface);
   SDL_Quit();
 
@@ -77,6 +88,65 @@ static bool is_palette_grayscale(const SDL_Palette *palette)
   }
 
   return true;
+}
+
+static SDL_Surface *convert_grayscale(SDL_Surface *surface)
+{
+
+  if (!surface)
+  {
+    SDL_SetError("convert_grayscale: surface nula");
+    return NULL;
+  }
+
+  // Duplica
+  SDL_Surface *dst = SDL_DuplicateSurface(surface);
+  if (!dst)
+  {
+    fprintf(stderr, "Falha ao duplicar a superfície: %s\n", SDL_GetError());
+    return NULL;
+  }
+
+  // Trava
+  if (!SDL_LockSurface(dst))
+  {
+    fprintf(stderr, "Falha ao travar a superfície: %s\n", SDL_GetError());
+    SDL_DestroySurface(dst);
+    return NULL;
+  }
+
+  const int w = dst->w;
+  const int h = dst->h;
+
+  // Sobreescreve o pixel para a escala de cinza
+  for (int y = 0; y < h; y++)
+  {
+    for (int x = 0; x < w; x++)
+    {
+      Uint8 r, g, b, a;
+      if (!SDL_ReadSurfacePixel(dst, x, y, &r, &g, &b, &a))
+      {
+        fprintf(stderr, "Falha ao ler pixel (%d,%d): %s\n", x, y, SDL_GetError());
+        SDL_UnlockSurface(dst);
+        SDL_DestroySurface(dst);
+        return NULL;
+      }
+
+      const float grayf = 0.2126f * (float)r + 0.7152f * (float)g + 0.0722f * (float)b;
+      const Uint8 gray = (Uint8)(grayf + 0.5f);
+
+      if (!SDL_WriteSurfacePixel(dst, x, y, gray, gray, gray, a))
+      {
+        fprintf(stderr, "Falha ao escrever pixel (%d,%d): %s\n", x, y, SDL_GetError());
+        SDL_UnlockSurface(dst);
+        SDL_DestroySurface(dst);
+        return NULL;
+      }
+    }
+  }
+
+  SDL_UnlockSurface(dst);
+  return dst;
 }
 
 static bool surface_is_grayscale(SDL_Surface *surface)
