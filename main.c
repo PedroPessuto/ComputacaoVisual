@@ -55,19 +55,27 @@ int main(int argc, char *argv[])
   bool is_gray = surface_is_grayscale(image_surface);
   printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
 
-  // 2.2) TO DO
-  SDL_Surface *gray_image = convert_grayscale(image_surface);
-  if (!gray_image)
+  // 2.2) conversao para escala de cinza (apenas se necessario)
+  if (!is_gray)
   {
-    fprintf(stderr, "Não foi possivel converter %s\n", SDL_GetError());
-  }
-  else
-  {
-    printf("Deu certo\n");
+    SDL_Surface *converted = convert_grayscale(image_surface);
+    if (!converted)
+    {
+      fprintf(stderr, "Falha ao converter a imagem para escala de cinza: %s\n", SDL_GetError());
+      SDL_DestroySurface(image_surface);
+      SDL_Quit();
+      return 1;
+    }
+
+    SDL_DestroySurface(image_surface);
+    image_surface = converted;
+    is_gray = true;
+    printf("Imagem convertida para escala de cinza.\n");
   }
 
+  // TODO: etapas seguintes (GUI, histograma, etc.)
+
   // Libera os recursos alocados antes de finalizar o programa.
-  SDL_DestroySurface(gray_image);
   SDL_DestroySurface(image_surface);
   SDL_Quit();
 
@@ -99,26 +107,28 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface)
     return NULL;
   }
 
-  // Duplica
   SDL_Surface *dst = SDL_DuplicateSurface(surface);
   if (!dst)
   {
-    fprintf(stderr, "Falha ao duplicar a superfície: %s\n", SDL_GetError());
+    fprintf(stderr, "Falha ao duplicar a superficie: %s\n", SDL_GetError());
     return NULL;
   }
 
-  // Trava
-  if (!SDL_LockSurface(dst))
+  bool locked = false;
+  if (SDL_MUSTLOCK(dst))
   {
-    fprintf(stderr, "Falha ao travar a superfície: %s\n", SDL_GetError());
-    SDL_DestroySurface(dst);
-    return NULL;
+    if (!SDL_LockSurface(dst))
+    {
+      fprintf(stderr, "Falha ao travar a superficie: %s\n", SDL_GetError());
+      SDL_DestroySurface(dst);
+      return NULL;
+    }
+    locked = true;
   }
 
   const int w = dst->w;
   const int h = dst->h;
 
-  // Sobreescreve o pixel para a escala de cinza
   for (int y = 0; y < h; y++)
   {
     for (int x = 0; x < w; x++)
@@ -127,27 +137,31 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface)
       if (!SDL_ReadSurfacePixel(dst, x, y, &r, &g, &b, &a))
       {
         fprintf(stderr, "Falha ao ler pixel (%d,%d): %s\n", x, y, SDL_GetError());
-        SDL_UnlockSurface(dst);
-        SDL_DestroySurface(dst);
-        return NULL;
+        goto fail;
       }
 
       const float grayf = 0.2126f * (float)r + 0.7152f * (float)g + 0.0722f * (float)b;
-      // Aredondamento para inteiro sem truncamento para baixo
       const Uint8 gray = (Uint8)(grayf + 0.5f);
 
       if (!SDL_WriteSurfacePixel(dst, x, y, gray, gray, gray, a))
       {
         fprintf(stderr, "Falha ao escrever pixel (%d,%d): %s\n", x, y, SDL_GetError());
-        SDL_UnlockSurface(dst);
-        SDL_DestroySurface(dst);
-        return NULL;
+        goto fail;
       }
     }
   }
 
-  SDL_UnlockSurface(dst);
+  if (locked)
+    SDL_UnlockSurface(dst);
+
   return dst;
+
+fail:
+  if (locked)
+    SDL_UnlockSurface(dst);
+
+  SDL_DestroySurface(dst);
+  return NULL;
 }
 
 static bool surface_is_grayscale(SDL_Surface *surface)
