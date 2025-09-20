@@ -10,6 +10,7 @@
 #include <SDL3_image/SDL_image.h>
 
 static bool is_palette_grayscale(const SDL_Palette *palette);
+static bool surface_is_grayscale(SDL_Surface *surface);
 
 int main(int argc, char *argv[])
 {
@@ -49,33 +50,13 @@ int main(int argc, char *argv[])
 
   // ========== ETAPA 2 ========
 
-  // 2.1) É colorida ou esacala de cinza?
-  bool is_gray = false;
-  SDL_Palette *palette = SDL_GetSurfacePalette(image_surface);
-  SDL_Surface *converted = NULL;
-
-  if (!palette)
-  {
-    // Conversão para 8 bits (INDEX8) para garantir que tenha paleta
-    converted = SDL_ConvertSurface(image_surface, SDL_PIXELFORMAT_INDEX8);
-    palette = SDL_GetSurfacePalette(converted);
-
-    if (palette && converted)
-    {
-      is_gray = is_palette_grayscale(palette);
-      printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
-    }
-    else
-    {
-      printf("Deu ruim ao pegar a paleta da imagem\n");
-    }
-  }
+  // 2.1) imagem colorida ou escala de cinza?
+  bool is_gray = surface_is_grayscale(image_surface);
+  printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
 
   // 2.2) TO DO
 
   // Libera os recursos alocados antes de finalizar o programa.
-  if (converted)
-    SDL_DestroySurface(converted);
   SDL_DestroySurface(image_surface);
   SDL_Quit();
 
@@ -96,4 +77,53 @@ static bool is_palette_grayscale(const SDL_Palette *palette)
   }
 
   return true;
+}
+
+static bool surface_is_grayscale(SDL_Surface *surface)
+{
+  if (!surface)
+    return false;
+
+  SDL_Palette *palette = SDL_GetSurfacePalette(surface);
+  if (palette)
+    return is_palette_grayscale(palette);
+
+  bool locked = false;
+  if (SDL_MUSTLOCK(surface))
+  {
+    if (!SDL_LockSurface(surface))
+    {
+      fprintf(stderr, "Falha ao travar a superficie para leitura: %s\n", SDL_GetError());
+      return false;
+    }
+    locked = true;
+  }
+
+  bool grayscale = true;
+  Uint8 r, g, b, a;
+
+  for (int y = 0; y < surface->h; y++)
+  {
+    for (int x = 0; x < surface->w; x++)
+    {
+      if (!SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, &a))
+      {
+        fprintf(stderr, "Falha ao ler pixel da imagem: %s\n", SDL_GetError());
+        grayscale = false;
+        goto done;
+      }
+
+      if (!(r == g && g == b))
+      {
+        grayscale = false;
+        goto done;
+      }
+    }
+  }
+
+done:
+  if (locked)
+    SDL_UnlockSurface(surface);
+
+  return grayscale;
 }
