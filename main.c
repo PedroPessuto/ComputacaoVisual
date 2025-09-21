@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
 
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
@@ -17,6 +18,11 @@ static SDL_Renderer* create_renderer(SDL_Window *window);
 static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface);
 static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, int height);
 static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window);
+static void compute_histogram(SDL_Surface *surface, int histogram[256]);
+static void compute_histogram_stats(const int histogram[256], int *total_out, double *mean_out, double *stddev_out);
+static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out);
+static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height);
+static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y);
 
 int main(int argc, char *argv[])
 {
@@ -28,14 +34,25 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  // Armazena o caminho da imagem do segundo argumento (argv[1]).
   const char *image_path = argv[1];
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
-  // Inicializa a biblioteca SDL, especificamente o subsistema de video.
-  if (!SDL_Init(SDL_INIT_VIDEO))
-  {
+  if (SDL_Init(SDL_INIT_VIDEO) < 0){
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
+    return 1;
+  }
+
+  if (TTF_Init() < 0){
+    fprintf(stderr, "Erro ao inicializar SDL_ttf: %s\n", SDL_GetError());
+    SDL_Quit();
+    return 1;
+  }
+
+  TTF_Font *font = TTF_OpenFont("fonts/arial/arial.ttf", 16);
+  if (!font) {
+    fprintf(stderr, "Erro ao carregar fonte: %s\n", SDL_GetError());
+    TTF_Quit();
+    SDL_Quit();
     return 1;
   }
 
@@ -48,6 +65,8 @@ int main(int argc, char *argv[])
   if (image_surface == NULL)
   {
     fprintf(stderr, "Erro ao carregar a imagem: %s\n", SDL_GetError());
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
@@ -68,6 +87,8 @@ int main(int argc, char *argv[])
     {
       fprintf(stderr, "Falha ao converter a imagem para escala de cinza: %s\n", SDL_GetError());
       SDL_DestroySurface(image_surface);
+      TTF_CloseFont(font);
+      TTF_Quit();
       SDL_Quit();
       return 1;
     }
@@ -85,6 +106,8 @@ int main(int argc, char *argv[])
   SDL_Window *window = create_main_window(image_surface);
   if(!window){
     SDL_DestroySurface(image_surface);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
@@ -93,6 +116,8 @@ int main(int argc, char *argv[])
   if(!renderer){
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
@@ -102,6 +127,8 @@ int main(int argc, char *argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
@@ -114,6 +141,8 @@ int main(int argc, char *argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
@@ -125,9 +154,23 @@ int main(int argc, char *argv[])
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
+    TTF_CloseFont(font);
+    TTF_Quit();
     SDL_Quit();
     return 1;
   }
+
+  int histogram[256];
+  compute_histogram(image_surface, histogram);
+  
+  int total_pixels_count;
+  double mean_intensity;
+  double stddev_intensity;
+  compute_histogram_stats(histogram, &total_pixels_count, &mean_intensity, &stddev_intensity);
+
+  const char *brightness_classification = "";
+  const char *contrast_classification = "";
+  classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
 
   //Loop de eventos para exibir a imagem
 
@@ -146,19 +189,41 @@ int main(int argc, char *argv[])
     SDL_RenderTexture(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 
-    SDL_SetRenderDrawColor(secondary_renderer, 150, 150, 150, 255);
+    int sec_w, sec_h;
+    SDL_GetWindowSize(secondary_window, &sec_w, &sec_h);
+
+    SDL_SetRenderDrawColor(secondary_renderer, 0, 0, 0, 255);
     SDL_RenderClear(secondary_renderer);
+
+    int histogram_render_height = sec_h - 100;
+
+    render_histogram(secondary_renderer, histogram, sec_w, histogram_render_height);
+
+    char buffer[128];
+
+    snprintf(buffer, sizeof(buffer), "Media: %.2f", mean_intensity);
+    render_text(secondary_renderer, font, buffer, 10, 10);
+
+    snprintf(buffer, sizeof(buffer), "Desvio Padrao: %.2f", stddev_intensity);
+    render_text(secondary_renderer, font, buffer, 10, 35);
+
+    snprintf(buffer, sizeof(buffer), "Brilho: %s", brightness_classification);
+    render_text(secondary_renderer, font, buffer, 10, 60);
+
+    snprintf(buffer, sizeof(buffer), "Contraste: %s", contrast_classification);
+    render_text(secondary_renderer, font, buffer, 10, 85);
+
     SDL_RenderPresent(secondary_renderer);
   }
   
-
-  // Libera os recursos alocados antes de finalizar o programa.
   SDL_DestroyTexture(texture);
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
   SDL_DestroySurface(image_surface);
   SDL_DestroyRenderer(secondary_renderer);
   SDL_DestroyWindow(secondary_window);
+  TTF_CloseFont(font);
+  TTF_Quit();
   SDL_Quit();
 
   printf("Programa finalizado com sucesso.\n");
@@ -352,4 +417,165 @@ static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window){
     return NULL;
   }
   return renderer;
+}
+
+static void compute_histogram(SDL_Surface *surface, int histogram[256]){
+    if (!surface) {
+        for (int i = 0; i < 256; ++i) histogram[i] = 0;
+        return;
+    }
+
+    for (int i = 0; i < 256; ++i) histogram[i] = 0;
+
+    bool locked = false;
+    if (SDL_MUSTLOCK(surface)) {
+        if (!SDL_LockSurface(surface)) {
+            fprintf(stderr, "Falha ao travar a superficie para histograma: %s\n", SDL_GetError());
+            return;
+        }
+        locked = true;
+    }
+
+    const int w = surface->w;
+    const int h = surface->h;
+
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            Uint8 r, g, b, a;
+            if (!SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, &a)) {
+                fprintf(stderr, "Falha ao ler pixel (%d,%d) para histograma: %s\n", x, y, SDL_GetError());
+                if (locked) SDL_UnlockSurface(surface);
+                return;
+            }
+
+            int intensity = r;
+
+            if (intensity < 0) intensity = 0;
+            if (intensity > 255) intensity = 255;
+
+            histogram[intensity]++;
+        }
+    }
+
+    if (locked) SDL_UnlockSurface(surface);
+}
+
+static void compute_histogram_stats(const int histogram[256], int *total_out, double *mean_out, double *stddev_out)
+{
+    long long total_pixels = 0;
+    long long sum_intensities = 0;
+    double sum_squared_diffs = 0.0;
+
+    for (int i = 0; i < 256; ++i) {
+        total_pixels += histogram[i];
+        sum_intensities += (long long)histogram[i] * i;
+    }
+
+    if (total_pixels == 0) {
+        if (total_out) *total_out = 0;
+        if (mean_out) *mean_out = 0.0;
+        if (stddev_out) *stddev_out = 0.0;
+        return;
+    }
+
+    double mean = (double)sum_intensities / (double)total_pixels;
+
+    for (int i = 0; i < 256; ++i) {
+        double diff = (double)i - mean;
+        sum_squared_diffs += diff * diff * (double)histogram[i];
+    }
+
+    double variance = sum_squared_diffs / (double)total_pixels;
+
+    double stddev = variance;
+    if (stddev > 0) {
+        for(int i = 0; i < 20; i++){
+          stddev = 0.5 * (stddev + variance / stddev);
+        }
+    } else {
+        stddev = 0.0;
+    }
+
+    if (total_out) *total_out = (int)total_pixels;
+    if (mean_out) *mean_out = mean;
+    if (stddev_out) *stddev_out = stddev;
+}
+
+static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out){
+  if(mean < 85){
+    *brightness_out = "Escura";
+  }else if(mean < 170){
+    *brightness_out = "Media";
+  }else{
+    *brightness_out = "Clara";
+  }
+
+  if(stddev < 40){
+    *contrast_out = "Baixo";
+  }else if(stddev < 80){
+    *contrast_out = "Medio";
+  }else{
+    *contrast_out = "Alto";
+  }
+}
+
+static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height){
+  int max_val = 0;
+  for (int i = 0; i < 256; i++){
+    if(histogram[i] > max_val){
+      max_val = histogram[i];
+    }
+  }
+  if(max_val == 0){
+    max_val = 1;
+  }
+
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+  float bar_width = (float)width / 256.0f;
+
+  for(int i = 0; i < 256; i++){
+    float norm_height = (float)histogram[i] / (float)max_val;
+    int bar_height = (int)(norm_height * height);
+
+    SDL_FRect rect;
+    rect.x = i * bar_width;
+    rect.y = height - bar_height;
+    rect.w = bar_width + 1.0f;
+    rect.h = bar_height;
+
+    SDL_RenderFillRect(renderer, &rect);
+  }
+}
+
+static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y) {
+    if (font == NULL || text == NULL || renderer == NULL) {
+        fprintf(stderr, "render_text: Font, text ou renderer é nulo.\n");
+        return;
+    }
+
+    SDL_Color white = {255, 255, 255, 255};
+
+    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, 0, white);
+    if (text_surface == NULL) {
+        fprintf(stderr, "render_text: Erro ao criar surface do texto: %s\n", SDL_GetError());
+        return;
+    }
+
+    SDL_Texture *text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+    SDL_DestroySurface(text_surface);
+
+    if (text_texture == NULL) {
+        fprintf(stderr, "render_text: Erro ao criar textura do texto: %s\n", SDL_GetError());
+        return;
+    }
+
+    float tw, th;
+    SDL_GetTextureSize(text_texture, (float*)&tw, (float*)&th);
+
+    SDL_FRect dst = {(float)x, (float)y, tw, th};
+    
+    SDL_RenderTexture(renderer, text_texture, NULL, &dst);
+
+    SDL_DestroyTexture(text_texture);
 }
