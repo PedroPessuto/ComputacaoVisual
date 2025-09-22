@@ -363,11 +363,28 @@ done:
 }
 
 static SDL_Window* create_main_window(SDL_Surface *image_surface){
+  int target_w = image_surface->w;
+  int target_h = image_surface->h;
+
+  SDL_DisplayID display = SDL_GetPrimaryDisplay();
+  SDL_Rect usable;
+  if (display != 0 && SDL_GetDisplayUsableBounds(display, &usable)){
+    float scale_w = (float)usable.w / (float)target_w;
+    float scale_h = (float)usable.h / (float)target_h;
+    float scale = scale_w < scale_h ? scale_w : scale_h;
+    if (scale < 1.0f){
+      target_w = (int)(target_w * scale);
+      target_h = (int)(target_h * scale);
+      if (target_w < 1) target_w = 1;
+      if (target_h < 1) target_h = 1;
+    }
+  }
+
   SDL_Window *window = SDL_CreateWindow(
     "Janela Principal",
-    image_surface->w,
-    image_surface->h,
-    0
+    target_w,
+    target_h,
+    SDL_WINDOW_RESIZABLE
   );
 
   if(!window){
