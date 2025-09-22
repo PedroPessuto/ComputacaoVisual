@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -21,7 +22,7 @@ static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window);
 static void compute_histogram(SDL_Surface *surface, int histogram[256]);
 static void compute_histogram_stats(const int histogram[256], int *total_out, double *mean_out, double *stddev_out);
 static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out);
-static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height);
+static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top);
 static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y);
 
 int main(int argc, char *argv[])
@@ -194,26 +195,33 @@ int main(int argc, char *argv[])
     int sec_w, sec_h;
     SDL_GetWindowSize(secondary_window, &sec_w, &sec_h);
 
-    SDL_SetRenderDrawColor(secondary_renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawColor(secondary_renderer, 20, 20, 20, 255);
     SDL_RenderClear(secondary_renderer);
 
-    int histogram_render_height = sec_h - 100;
+    const int text_panel_height = 110;
+    const int text_padding = 12;
 
-    render_histogram(secondary_renderer, histogram, sec_w, histogram_render_height);
+    SDL_SetRenderDrawColor(secondary_renderer, 40, 40, 40, 220);
+    SDL_FRect info_panel = {0, 0, (float)sec_w, (float)text_panel_height};
+    SDL_RenderFillRect(secondary_renderer, &info_panel);
+
+    int histogram_height = sec_h - text_panel_height - text_padding;
+    if (histogram_height < 10) histogram_height = 10;
+    render_histogram(secondary_renderer, histogram, sec_w, histogram_height, text_panel_height + text_padding);
 
     char buffer[128];
 
     snprintf(buffer, sizeof(buffer), "Media: %.2f", mean_intensity);
-    render_text(secondary_renderer, font, buffer, 10, 10);
+    render_text(secondary_renderer, font, buffer, 12, 12);
 
     snprintf(buffer, sizeof(buffer), "Desvio Padrao: %.2f", stddev_intensity);
-    render_text(secondary_renderer, font, buffer, 10, 35);
+    render_text(secondary_renderer, font, buffer, 12, 37);
 
     snprintf(buffer, sizeof(buffer), "Brilho: %s", brightness_classification);
-    render_text(secondary_renderer, font, buffer, 10, 60);
+    render_text(secondary_renderer, font, buffer, 12, 62);
 
     snprintf(buffer, sizeof(buffer), "Contraste: %s", contrast_classification);
-    render_text(secondary_renderer, font, buffer, 10, 85);
+    render_text(secondary_renderer, font, buffer, 12, 87);
 
     SDL_RenderPresent(secondary_renderer);
   }
@@ -561,7 +569,7 @@ static void classify_histogram(double mean, double stddev, const char **brightne
   }
 }
 
-static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height){
+static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top){
   int max_val = 0;
   for (int i = 0; i < 256; i++){
     if(histogram[i] > max_val){
@@ -572,17 +580,20 @@ static void render_histogram(SDL_Renderer *renderer, int histogram[256], int wid
     max_val = 1;
   }
 
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+  SDL_SetRenderDrawColor(renderer, 220, 220, 220, 255);
 
   float bar_width = (float)width / 256.0f;
 
   for(int i = 0; i < 256; i++){
     float norm_height = (float)histogram[i] / (float)max_val;
     int bar_height = (int)(norm_height * height);
+    if (bar_height < 1){
+      bar_height = 1;
+    }
 
     SDL_FRect rect;
     rect.x = i * bar_width;
-    rect.y = height - bar_height;
+    rect.y = top + (height - bar_height);
     rect.w = bar_width + 1.0f;
     rect.h = bar_height;
 
@@ -598,7 +609,7 @@ static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text
 
     SDL_Color white = {255, 255, 255, 255};
 
-    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, 0, white);
+    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, strlen(text), white);
     if (text_surface == NULL) {
         fprintf(stderr, "render_text: Erro ao criar surface do texto: %s\n", SDL_GetError());
         return;
