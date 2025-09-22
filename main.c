@@ -408,8 +408,30 @@ static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, i
     return NULL;
   }
 
-  //Desloca 10px da principal
-  SDL_SetWindowPosition(window, main_x + main_w + 10, main_y);
+  int target_x = main_x + main_w + 10;
+  int target_y = main_y;
+
+  SDL_DisplayID display = SDL_GetDisplayForWindow(main_window);
+  SDL_Rect bounds;
+  if (display != 0 && SDL_GetDisplayBounds(display, &bounds)){
+    int max_x = bounds.x + bounds.w - width;
+    if (target_x > max_x){
+      target_x = main_x - width - 10;
+    }
+    if (target_x < bounds.x){
+      target_x = bounds.x;
+    }
+
+    int max_y = bounds.y + bounds.h - height;
+    if (target_y > max_y){
+      target_y = max_y;
+    }
+    if (target_y < bounds.y){
+      target_y = bounds.y;
+    }
+  }
+
+  SDL_SetWindowPosition(window, target_x, target_y);
   return window;
 }
 
