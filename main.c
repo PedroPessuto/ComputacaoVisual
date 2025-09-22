@@ -11,6 +11,16 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+
+typedef struct
+{
+  SDL_FRect rect;
+  bool hovered;
+  bool pressed;
+  bool toggled;
+  const char *label_off;
+  const char *label_on;
+} ToggleButton;
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
 static SDL_Surface *convert_grayscale(SDL_Surface *surface);
@@ -24,6 +34,7 @@ static void compute_histogram_stats(const int histogram[256], int *total_out, do
 static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out);
 static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top);
 static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y);
+static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button);
 
 int main(int argc, char *argv[])
 {
@@ -100,7 +111,7 @@ int main(int argc, char *argv[])
     printf("Imagem convertida para escala de cinza.\n");
   }
 
-  // TODO: etapas seguintes (GUI, histograma, etc.)
+  // ========== ETAPA 3 ========
 
   //3.1 Criar janela principal
 
@@ -171,7 +182,20 @@ int main(int argc, char *argv[])
 
   const char *brightness_classification = "";
   const char *contrast_classification = "";
+
+  ToggleButton equalize_button = {
+    .rect = {0.0f, 0.0f, 200.0f, 44.0f},
+    .hovered = false,
+    .pressed = false,
+    .toggled = false,
+    .label_off = "Equalizar",
+    .label_on = "Original"
+  };
+
+  // ========== ETAPA 5: Equalizacao do histograma =========
   classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
+
+  // ========== ETAPA 4: Analise e exibicao do histograma =========
 
   //Loop de eventos para exibir a imagem
 
@@ -200,14 +224,36 @@ int main(int argc, char *argv[])
 
     const int text_panel_height = 110;
     const int text_padding = 12;
+    const float button_height = 44.0f;
+    const float button_margin = 16.0f;
 
     SDL_SetRenderDrawColor(secondary_renderer, 40, 40, 40, 220);
     SDL_FRect info_panel = {0, 0, (float)sec_w, (float)text_panel_height};
     SDL_RenderFillRect(secondary_renderer, &info_panel);
 
-    int histogram_height = sec_h - text_panel_height - text_padding;
+    int histogram_height = sec_h - text_panel_height - text_padding - (int)(button_height + button_margin);
     if (histogram_height < 10) histogram_height = 10;
-    render_histogram(secondary_renderer, histogram, sec_w, histogram_height, text_panel_height + text_padding);
+    int histogram_top = text_panel_height + text_padding;
+    render_histogram(secondary_renderer, histogram, sec_w, histogram_height, histogram_top);
+
+    float max_button_width = sec_w - 2.0f * button_margin;
+    if (max_button_width < 40.0f) max_button_width = 40.0f;
+    float desired_button_width = 200.0f;
+    if (desired_button_width > max_button_width) desired_button_width = max_button_width;
+    if (desired_button_width < 80.0f) desired_button_width = max_button_width;
+
+    equalize_button.rect.w = desired_button_width;
+    equalize_button.rect.h = button_height;
+    equalize_button.rect.x = (sec_w - equalize_button.rect.w) * 0.5f;
+    if (equalize_button.rect.x < button_margin)
+      equalize_button.rect.x = button_margin;
+    equalize_button.rect.y = histogram_top + histogram_height + button_margin;
+    if (equalize_button.rect.y + equalize_button.rect.h > sec_h - button_margin)
+      equalize_button.rect.y = sec_h - equalize_button.rect.h - button_margin;
+    if (equalize_button.rect.y < histogram_top + button_margin)
+      equalize_button.rect.y = histogram_top + button_margin;
+
+    draw_toggle_button(secondary_renderer, font, &equalize_button);
 
     char buffer[128];
 
@@ -631,4 +677,38 @@ static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text
     SDL_RenderTexture(renderer, text_texture, NULL, &dst);
 
     SDL_DestroyTexture(text_texture);
+}
+static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button)
+{
+  if (!button)
+    return;
+
+  SDL_Color fill = button->toggled ? (SDL_Color){60, 120, 220, 255} : (SDL_Color){80, 80, 80, 255};
+  SDL_Color border = {200, 200, 200, 255};
+
+  if (button->pressed)
+  {
+    fill = (SDL_Color){50, 90, 170, 255};
+  }
+  else if (button->hovered)
+  {
+    fill = (SDL_Color){100, 100, 100, 255};
+  }
+
+  SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
+  SDL_RenderFillRect(renderer, &button->rect);
+
+  SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
+  SDL_RenderRect(renderer, &button->rect);
+
+  const char *label = button->toggled ? button->label_on : button->label_off;
+  if (label)
+  {
+    float text_x = button->rect.x + 18.0f;
+    float text_y = button->rect.y + (button->rect.h * 0.5f) - 10.0f;
+    if (text_y < button->rect.y + 8.0f)
+      text_y = button->rect.y + 8.0f;
+
+    render_text(renderer, font, label, (int)text_x, (int)text_y);
+  }
 }
