@@ -180,6 +180,8 @@ int main(int argc, char *argv[])
     while(SDL_PollEvent(&e)){
       if(e.type == SDL_EVENT_QUIT){
         running = false;
+      }else if(e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED){
+        running = false;
       }else if(e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE){
         running = false;
       }
@@ -367,12 +369,13 @@ static SDL_Window* create_main_window(SDL_Surface *image_surface){
     image_surface->h,
     0
   );
-SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
   if(!window){
     fprintf(stderr, "Falha ao criar janela principal: %s\n", SDL_GetError());
     return NULL;
   }
+
+  SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
   return window;
 }
 
