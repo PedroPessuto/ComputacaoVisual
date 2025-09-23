@@ -5,12 +5,12 @@
 // ==========================
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
-
 
 typedef struct
 {
@@ -24,11 +24,11 @@ typedef struct
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
 static SDL_Surface *convert_grayscale(SDL_Surface *surface);
-static SDL_Window* create_main_window(SDL_Surface *image_surface);
-static SDL_Renderer* create_renderer(SDL_Window *window);
-static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface);
-static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, int height);
-static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window);
+static SDL_Window *create_main_window(SDL_Surface *image_surface);
+static SDL_Renderer *create_renderer(SDL_Window *window);
+static SDL_Texture *create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface);
+static SDL_Window *create_secondary_window(SDL_Window *main_window, int width, int height);
+static SDL_Renderer *create_secondary_renderer(SDL_Window *secondary_window);
 static void compute_histogram(SDL_Surface *surface, int histogram[256]);
 static void compute_histogram_stats(const int histogram[256], int *total_out, double *mean_out, double *stddev_out);
 static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out);
@@ -38,6 +38,7 @@ static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const Tog
 static bool point_in_frect(const SDL_FRect *rect, float x, float y);
 static void build_equalization_lut(const int hist[256], int total_pixels, Uint8 lut[256]);
 static SDL_Surface *apply_equalization_lut(SDL_Surface *src, const Uint8 lut[256]);
+static bool save_surface_as_png(SDL_Surface *surface, const char *filepath);
 
 int main(int argc, char *argv[])
 {
@@ -52,19 +53,22 @@ int main(int argc, char *argv[])
   const char *image_path = argv[1];
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
-  if (!SDL_Init(SDL_INIT_VIDEO)){
+  if (!SDL_Init(SDL_INIT_VIDEO))
+  {
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
     return 1;
   }
 
-  if (!TTF_Init()){
+  if (!TTF_Init())
+  {
     fprintf(stderr, "Erro ao inicializar SDL_ttf: %s\n", SDL_GetError());
     SDL_Quit();
     return 1;
   }
 
   TTF_Font *font = TTF_OpenFont("fonts/arial/arial.ttf", 16);
-  if (!font) {
+  if (!font)
+  {
     fprintf(stderr, "Erro ao carregar fonte: %s\n", SDL_GetError());
     TTF_Quit();
     SDL_Quit();
@@ -121,10 +125,11 @@ int main(int argc, char *argv[])
 
   // ========== ETAPA 3 ========
 
-  //3.1 Criar janela principal
+  // 3.1 Criar janela principal
 
   SDL_Window *window = create_main_window(gray_surface);
-  if(!window){
+  if (!window)
+  {
     SDL_DestroySurface(image_surface);
     TTF_CloseFont(font);
     TTF_Quit();
@@ -133,7 +138,8 @@ int main(int argc, char *argv[])
   }
 
   SDL_Renderer *renderer = create_renderer(window);
-  if(!renderer){
+  if (!renderer)
+  {
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
     TTF_CloseFont(font);
@@ -143,7 +149,8 @@ int main(int argc, char *argv[])
   }
 
   SDL_Texture *texture = create_texture_from_surface(renderer, current_surface);
-  if(!texture){
+  if (!texture)
+  {
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_DestroySurface(image_surface);
@@ -153,10 +160,11 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  //3.2 Criar Janela Secundaria
+  // 3.2 Criar Janela Secundaria
 
   SDL_Window *secondary_window = create_secondary_window(window, 400, 400);
-  if(!secondary_window){
+  if (!secondary_window)
+  {
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -168,7 +176,8 @@ int main(int argc, char *argv[])
   }
 
   SDL_Renderer *secondary_renderer = create_secondary_renderer(secondary_window);
-  if(!secondary_renderer){
+  if (!secondary_renderer)
+  {
     SDL_DestroyWindow(secondary_window);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
@@ -180,7 +189,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-// ========== ETAPA 4: Analise e exibicao do histograma =========
+  // ========== ETAPA 4: Analise e exibicao do histograma =========
 
   int histogram[256];
   compute_histogram(current_surface, histogram);
@@ -202,13 +211,12 @@ int main(int argc, char *argv[])
 
   // 5.1) Configuracao visual do botao de equalizacao
   ToggleButton equalize_button = {
-    .rect = {0.0f, 0.0f, 200.0f, 44.0f},
-    .hovered = false,
-    .pressed = false,
-    .toggled = false,
-    .label_off = "Equalizar",
-    .label_on = "Original"
-  };
+      .rect = {0.0f, 0.0f, 200.0f, 44.0f},
+      .hovered = false,
+      .pressed = false,
+      .toggled = false,
+      .label_off = "Equalizar",
+      .label_on = "Original"};
 
   // 5.2) Estado de interacao do botao de equalizacao
   SDL_WindowID secondary_window_id = SDL_GetWindowID(secondary_window);
@@ -217,9 +225,11 @@ int main(int argc, char *argv[])
 
   // 5.2) Interacoes do botao e laco principal das janelas
   bool running = true;
-  while(running){
+  while (running)
+  {
     SDL_Event e;
-    while(SDL_PollEvent(&e)){
+    while (SDL_PollEvent(&e))
+    {
       switch (e.type)
       {
       case SDL_EVENT_QUIT:
@@ -229,6 +239,18 @@ int main(int argc, char *argv[])
       case SDL_EVENT_KEY_DOWN:
         if (e.key.key == SDLK_ESCAPE)
           running = false;
+        else if (e.key.key == SDLK_S)
+        {
+          const char *out_path = "output_image.png";
+          if (save_surface_as_png(current_surface, out_path))
+          {
+            printf("Imagem salva em '%s'\n", out_path);
+          }
+          else
+          {
+            fprintf(stderr, "Falha ao salvar imagem em '%s': %s\n", out_path, SDL_GetError());
+          }
+        }
         break;
       case SDL_EVENT_MOUSE_MOTION:
         if (e.motion.windowID == secondary_window_id)
@@ -263,7 +285,7 @@ int main(int argc, char *argv[])
           {
             SDL_Surface *previous_surface = current_surface;
             bool previous_toggle = equalize_button.toggled;
-            
+
             // 5.3) Equalizacao: gera LUT (a partir do hist base cinza),
             //      cria/usa eq_surface, define desired_surface
             equalize_button.toggled = !equalize_button.toggled;
@@ -367,15 +389,19 @@ int main(int argc, char *argv[])
     SDL_RenderFillRect(secondary_renderer, &info_panel);
 
     int histogram_height = sec_h - text_panel_height - text_padding - (int)(button_height + button_margin);
-    if (histogram_height < 10) histogram_height = 10;
+    if (histogram_height < 10)
+      histogram_height = 10;
     int histogram_top = text_panel_height + text_padding;
     render_histogram(secondary_renderer, histogram, sec_w, histogram_height, histogram_top);
 
     float max_button_width = sec_w - 2.0f * button_margin;
-    if (max_button_width < 40.0f) max_button_width = 40.0f;
+    if (max_button_width < 40.0f)
+      max_button_width = 40.0f;
     float desired_button_width = 200.0f;
-    if (desired_button_width > max_button_width) desired_button_width = max_button_width;
-    if (desired_button_width < 80.0f) desired_button_width = max_button_width;
+    if (desired_button_width > max_button_width)
+      desired_button_width = max_button_width;
+    if (desired_button_width < 80.0f)
+      desired_button_width = max_button_width;
 
     equalize_button.rect.w = desired_button_width;
     equalize_button.rect.h = button_height;
@@ -406,7 +432,7 @@ int main(int argc, char *argv[])
 
     SDL_RenderPresent(secondary_renderer);
   }
-  
+
   // 5.3) Cleanup: liberar cache equalizada se alocada
   if (eq_surface && eq_surface != gray_surface)
     SDL_DestroySurface(eq_surface);
@@ -481,7 +507,7 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface)
         fprintf(stderr, "Falha ao ler pixel (%d,%d): %s\n", x, y, SDL_GetError());
         goto fail;
       }
-        
+
       const float grayf = 0.2125f * (float)r + 0.7154f * (float)g + 0.0721f * (float)b;
       const Uint8 gray = (Uint8)(grayf + 0.5f);
 
@@ -555,32 +581,37 @@ done:
   return grayscale;
 }
 
-static SDL_Window* create_main_window(SDL_Surface *image_surface){
+static SDL_Window *create_main_window(SDL_Surface *image_surface)
+{
   int target_w = image_surface->w;
   int target_h = image_surface->h;
 
   SDL_DisplayID display = SDL_GetPrimaryDisplay();
   SDL_Rect usable;
-  if (display != 0 && SDL_GetDisplayUsableBounds(display, &usable)){
+  if (display != 0 && SDL_GetDisplayUsableBounds(display, &usable))
+  {
     float scale_w = (float)usable.w / (float)target_w;
     float scale_h = (float)usable.h / (float)target_h;
     float scale = scale_w < scale_h ? scale_w : scale_h;
-    if (scale < 1.0f){
+    if (scale < 1.0f)
+    {
       target_w = (int)(target_w * scale);
       target_h = (int)(target_h * scale);
-      if (target_w < 1) target_w = 1;
-      if (target_h < 1) target_h = 1;
+      if (target_w < 1)
+        target_w = 1;
+      if (target_h < 1)
+        target_h = 1;
     }
   }
 
   SDL_Window *window = SDL_CreateWindow(
-    "Janela Principal",
-    target_w,
-    target_h,
-    SDL_WINDOW_RESIZABLE
-  );
+      "Janela Principal",
+      target_w,
+      target_h,
+      SDL_WINDOW_RESIZABLE);
 
-  if(!window){
+  if (!window)
+  {
     fprintf(stderr, "Falha ao criar janela principal: %s\n", SDL_GetError());
     return NULL;
   }
@@ -589,31 +620,37 @@ static SDL_Window* create_main_window(SDL_Surface *image_surface){
   return window;
 }
 
-static SDL_Renderer* create_renderer(SDL_Window *window){
+static SDL_Renderer *create_renderer(SDL_Window *window)
+{
   SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
-  if(!renderer){
+  if (!renderer)
+  {
     fprintf(stderr, "Falha ao criar renderer: %s\n", SDL_GetError());
     return NULL;
   }
   return renderer;
 }
 
-static SDL_Texture* create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface){
+static SDL_Texture *create_texture_from_surface(SDL_Renderer *renderer, SDL_Surface *surface)
+{
   SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-  if(!texture){
+  if (!texture)
+  {
     fprintf(stderr, "Falha ao criar textura: %s\n", SDL_GetError());
     return NULL;
   }
   return texture;
 }
 
-static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, int height){
+static SDL_Window *create_secondary_window(SDL_Window *main_window, int width, int height)
+{
   int main_x, main_y, main_w, main_h;
   SDL_GetWindowPosition(main_window, &main_x, &main_y);
   SDL_GetWindowSize(main_window, &main_w, &main_h);
 
   SDL_Window *window = SDL_CreateWindow("Janela Secundaria", width, height, 0);
-  if(!window){
+  if (!window)
+  {
     fprintf(stderr, "Falha ao criar janela secundaria: %s\n", SDL_GetError());
     return NULL;
   }
@@ -623,20 +660,25 @@ static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, i
 
   SDL_DisplayID display = SDL_GetDisplayForWindow(main_window);
   SDL_Rect bounds;
-  if (display != 0 && SDL_GetDisplayBounds(display, &bounds)){
+  if (display != 0 && SDL_GetDisplayBounds(display, &bounds))
+  {
     int max_x = bounds.x + bounds.w - width;
-    if (target_x > max_x){
+    if (target_x > max_x)
+    {
       target_x = main_x - width - 10;
     }
-    if (target_x < bounds.x){
+    if (target_x < bounds.x)
+    {
       target_x = bounds.x;
     }
 
     int max_y = bounds.y + bounds.h - height;
-    if (target_y > max_y){
+    if (target_y > max_y)
+    {
       target_y = max_y;
     }
-    if (target_y < bounds.y){
+    if (target_y < bounds.y)
+    {
       target_y = bounds.y;
     }
   }
@@ -645,111 +687,150 @@ static SDL_Window* create_secondary_window(SDL_Window *main_window, int width, i
   return window;
 }
 
-static SDL_Renderer* create_secondary_renderer(SDL_Window *secondary_window){
+static SDL_Renderer *create_secondary_renderer(SDL_Window *secondary_window)
+{
   SDL_Renderer *renderer = SDL_CreateRenderer(secondary_window, NULL);
-  if(!renderer){
+  if (!renderer)
+  {
     fprintf(stderr, "Falha ao criar renderer da janela secundaria: %s\n", SDL_GetError());
     return NULL;
   }
   return renderer;
 }
 
-static void compute_histogram(SDL_Surface *surface, int histogram[256]){
-    if (!surface) {
-        for (int i = 0; i < 256; ++i) histogram[i] = 0;
+static void compute_histogram(SDL_Surface *surface, int histogram[256])
+{
+  if (!surface)
+  {
+    for (int i = 0; i < 256; ++i)
+      histogram[i] = 0;
+    return;
+  }
+
+  for (int i = 0; i < 256; ++i)
+    histogram[i] = 0;
+
+  bool locked = false;
+  if (SDL_MUSTLOCK(surface))
+  {
+    if (!SDL_LockSurface(surface))
+    {
+      fprintf(stderr, "Falha ao travar a superficie para histograma: %s\n", SDL_GetError());
+      return;
+    }
+    locked = true;
+  }
+
+  const int w = surface->w;
+  const int h = surface->h;
+
+  for (int y = 0; y < h; ++y)
+  {
+    for (int x = 0; x < w; ++x)
+    {
+      Uint8 r, g, b, a;
+      if (!SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, &a))
+      {
+        fprintf(stderr, "Falha ao ler pixel (%d,%d) para histograma: %s\n", x, y, SDL_GetError());
+        if (locked)
+          SDL_UnlockSurface(surface);
         return;
+      }
+
+      int intensity = r;
+
+      if (intensity < 0)
+        intensity = 0;
+      if (intensity > 255)
+        intensity = 255;
+
+      histogram[intensity]++;
     }
+  }
 
-    for (int i = 0; i < 256; ++i) histogram[i] = 0;
-
-    bool locked = false;
-    if (SDL_MUSTLOCK(surface)) {
-        if (!SDL_LockSurface(surface)) {
-            fprintf(stderr, "Falha ao travar a superficie para histograma: %s\n", SDL_GetError());
-            return;
-        }
-        locked = true;
-    }
-
-    const int w = surface->w;
-    const int h = surface->h;
-
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            Uint8 r, g, b, a;
-            if (!SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, &a)) {
-                fprintf(stderr, "Falha ao ler pixel (%d,%d) para histograma: %s\n", x, y, SDL_GetError());
-                if (locked) SDL_UnlockSurface(surface);
-                return;
-            }
-
-            int intensity = r;
-
-            if (intensity < 0) intensity = 0;
-            if (intensity > 255) intensity = 255;
-
-            histogram[intensity]++;
-        }
-    }
-
-    if (locked) SDL_UnlockSurface(surface);
+  if (locked)
+    SDL_UnlockSurface(surface);
 }
 
 static void compute_histogram_stats(const int histogram[256], int *total_out, double *mean_out, double *stddev_out)
 {
-    long long total_pixels = 0;
-    long long sum_intensities = 0;
-    double sum_squared_diffs = 0.0;
+  long long total_pixels = 0;
+  long long sum_intensities = 0;
+  double sum_squared_diffs = 0.0;
 
-    for (int i = 0; i < 256; ++i) {
-        total_pixels += histogram[i];
-        sum_intensities += (long long)histogram[i] * i;
+  for (int i = 0; i < 256; ++i)
+  {
+    total_pixels += histogram[i];
+    sum_intensities += (long long)histogram[i] * i;
+  }
+
+  if (total_pixels == 0)
+  {
+    if (total_out)
+      *total_out = 0;
+    if (mean_out)
+      *mean_out = 0.0;
+    if (stddev_out)
+      *stddev_out = 0.0;
+    return;
+  }
+
+  double mean = (double)sum_intensities / (double)total_pixels;
+
+  for (int i = 0; i < 256; ++i)
+  {
+    double diff = (double)i - mean;
+    sum_squared_diffs += diff * diff * (double)histogram[i];
+  }
+
+  double variance = sum_squared_diffs / (double)total_pixels;
+
+  double stddev = variance;
+  if (stddev > 0)
+  {
+    for (int i = 0; i < 20; i++)
+    {
+      stddev = 0.5 * (stddev + variance / stddev);
     }
+  }
+  else
+  {
+    stddev = 0.0;
+  }
 
-    if (total_pixels == 0) {
-        if (total_out) *total_out = 0;
-        if (mean_out) *mean_out = 0.0;
-        if (stddev_out) *stddev_out = 0.0;
-        return;
-    }
-
-    double mean = (double)sum_intensities / (double)total_pixels;
-
-    for (int i = 0; i < 256; ++i) {
-        double diff = (double)i - mean;
-        sum_squared_diffs += diff * diff * (double)histogram[i];
-    }
-
-    double variance = sum_squared_diffs / (double)total_pixels;
-
-    double stddev = variance;
-    if (stddev > 0) {
-        for(int i = 0; i < 20; i++){
-          stddev = 0.5 * (stddev + variance / stddev);
-        }
-    } else {
-        stddev = 0.0;
-    }
-
-    if (total_out) *total_out = (int)total_pixels;
-    if (mean_out) *mean_out = mean;
-    if (stddev_out) *stddev_out = stddev;
+  if (total_out)
+    *total_out = (int)total_pixels;
+  if (mean_out)
+    *mean_out = mean;
+  if (stddev_out)
+    *stddev_out = stddev;
 }
 
-static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out){
-  if(mean < 85){
+static void classify_histogram(double mean, double stddev, const char **brightness_out, const char **contrast_out)
+{
+  if (mean < 85)
+  {
     *brightness_out = "Escura";
-  }else if(mean < 170){
+  }
+  else if (mean < 170)
+  {
     *brightness_out = "Media";
-  }else{
+  }
+  else
+  {
     *brightness_out = "Clara";
   }
 
-  if(stddev < 40){
+  if (stddev < 40)
+  {
     *contrast_out = "Baixo";
-  }else if(stddev < 80){
+  }
+  else if (stddev < 80)
+  {
     *contrast_out = "Medio";
-  }else{
+  }
+  else
+  {
     *contrast_out = "Alto";
   }
 }
@@ -790,8 +871,10 @@ static void build_equalization_lut(const int hist[256], int total_pixels, Uint8 
 
     double valor = ((double)numerador * 255.0) / denom;
     int y = (int)(valor + 0.5);
-    if (y < 0) y = 0;
-    if (y > 255) y = 255;
+    if (y < 0)
+      y = 0;
+    if (y > 255)
+      y = 255;
     lut[i] = (Uint8)y;
   }
 }
@@ -878,14 +961,18 @@ fail:
   return NULL;
 }
 
-static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top){
+static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top)
+{
   int max_val = 0;
-  for (int i = 0; i < 256; i++){
-    if(histogram[i] > max_val){
+  for (int i = 0; i < 256; i++)
+  {
+    if (histogram[i] > max_val)
+    {
       max_val = histogram[i];
     }
   }
-  if(max_val == 0){
+  if (max_val == 0)
+  {
     max_val = 1;
   }
 
@@ -893,10 +980,12 @@ static void render_histogram(SDL_Renderer *renderer, int histogram[256], int wid
 
   float bar_width = (float)width / 256.0f;
 
-  for(int i = 0; i < 256; i++){
+  for (int i = 0; i < 256; i++)
+  {
     float norm_height = (float)histogram[i] / (float)max_val;
     int bar_height = (int)(norm_height * height);
-    if (bar_height < 1){
+    if (bar_height < 1)
+    {
       bar_height = 1;
     }
 
@@ -910,36 +999,40 @@ static void render_histogram(SDL_Renderer *renderer, int histogram[256], int wid
   }
 }
 
-static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y) {
-    if (font == NULL || text == NULL || renderer == NULL) {
-        fprintf(stderr, "render_text: Font, text ou renderer é nulo.\n");
-        return;
-    }
+static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y)
+{
+  if (font == NULL || text == NULL || renderer == NULL)
+  {
+    fprintf(stderr, "render_text: Font, text ou renderer é nulo.\n");
+    return;
+  }
 
-    SDL_Color white = {255, 255, 255, 255};
+  SDL_Color white = {255, 255, 255, 255};
 
-    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, 0, white);
-    if (text_surface == NULL) {
-        fprintf(stderr, "render_text: Erro ao criar surface do texto: %s\n", SDL_GetError());
-        return;
-    }
+  SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, 0, white);
+  if (text_surface == NULL)
+  {
+    fprintf(stderr, "render_text: Erro ao criar surface do texto: %s\n", SDL_GetError());
+    return;
+  }
 
-    SDL_Texture *text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
-    SDL_DestroySurface(text_surface);
+  SDL_Texture *text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+  SDL_DestroySurface(text_surface);
 
-    if (text_texture == NULL) {
-        fprintf(stderr, "render_text: Erro ao criar textura do texto: %s\n", SDL_GetError());
-        return;
-    }
+  if (text_texture == NULL)
+  {
+    fprintf(stderr, "render_text: Erro ao criar textura do texto: %s\n", SDL_GetError());
+    return;
+  }
 
-    float tw, th;
-    SDL_GetTextureSize(text_texture, (float*)&tw, (float*)&th);
+  float tw, th;
+  SDL_GetTextureSize(text_texture, (float *)&tw, (float *)&th);
 
-    SDL_FRect dst = {(float)x, (float)y, tw, th};
-    
-    SDL_RenderTexture(renderer, text_texture, NULL, &dst);
+  SDL_FRect dst = {(float)x, (float)y, tw, th};
 
-    SDL_DestroyTexture(text_texture);
+  SDL_RenderTexture(renderer, text_texture, NULL, &dst);
+
+  SDL_DestroyTexture(text_texture);
 }
 static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button)
 {
@@ -983,3 +1076,18 @@ static bool point_in_frect(const SDL_FRect *rect, float x, float y)
   return (x >= rect->x && x <= rect->x + rect->w && y >= rect->y && y <= rect->y + rect->h);
 }
 
+static bool save_surface_as_png(SDL_Surface *surface, const char *filepath)
+{
+  if (!surface || !filepath)
+  {
+    SDL_SetError("save_surface_as_png: parametros invalidos");
+    return false;
+  }
+
+  if (!IMG_SavePNG(surface, filepath))
+  {
+    return false;
+  }
+
+  return true;
+}

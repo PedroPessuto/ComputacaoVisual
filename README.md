@@ -8,6 +8,7 @@ Aplicativo em C (C99+) usando SDL3, SDL_image e SDL_ttf que:
 - Exibe a imagem na janela principal e um painel auxiliar em uma janela secundaria.
 - Renderiza histograma, media e desvio-padrao e classifica brilho/contraste.
 - Equaliza o histograma (CDF global) e alterna entre versao original e equalizada.
+- Permite salvar a imagem atualmente exibida em `output_image.png` com a tecla `S`.
 
 ## Sumario
 
@@ -101,7 +102,7 @@ Se a fonte nao for encontrada, confira `fonts/arial/arial.ttf` ou ajuste o camin
 
 - Clique no botao (janela secundaria) para alternar entre Equalizar <-> Original.
 - `ESC` ou fechar qualquer janela encerra o programa.
-- `S` - reservado para salvar imagem (ver Item 6).
+- `S` - salva a imagem exibida em `output_image.png` (sobrescreve).
 
 ## Estrutura do projeto
 
@@ -148,14 +149,9 @@ Se a fonte nao for encontrada, confira `fonts/arial/arial.ttf` ou ajuste o camin
   2. Adicionar `--help` na CLI e permitir customizar fonte via argumento.
   3. Criar Makefile com `pkg-config` para padronizar a compilacao.
 
-## Item 6 - Salvar imagem (reservado)
+## Item 6 - Salvar imagem (implementado)
 
-Requisito pendente: ao pressionar `S`, salvar a imagem atualmente exibida (`current_surface`) em `output_image.png`, sobrescrevendo se existir.
-Sugestao de abordagem:
-
-- Capturar `SDL_EVENT_KEY_DOWN` com `S` na janela principal.
-- Usar `IMG_SavePNG(current_surface, "output_image.png")` e registrar sucesso/falha no log.
-- Apos a implementacao, mover esta secao para "Como funciona" e marcar o projeto como concluido.
+Ao pressionar `S`, o aplicativo salva a imagem atualmente exibida na janela principal (`current_surface`) em `output_image.png`, sobrescrevendo o arquivo se existir.
 
 ## Licencas e creditos
 
