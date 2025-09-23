@@ -36,6 +36,7 @@ Aplicativo em C (C99+) usando SDL3, SDL_image e SDL_ttf que:
   - [Duvidas comuns](#duvidas-comuns)
 
 ## Como funciona (visao por etapas)
+- [Sumario](#sumario)
 
 ### 1) Carregamento de imagem
 
@@ -113,7 +114,7 @@ Se a fonte nao for encontrada, confira `fonts/arial/arial.ttf` ou ajuste o camin
 ```
 
 ## Contribuicoes do grupo
-
+- [Sumario](#sumario)
 ### Henrique Arabe Neres de Farias - 10410152
 
 - Etapas 1 e 3: inicializacao/finalizacao SDL3, carregamento com tratamento basico, janelas principal e secundaria.
