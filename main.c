@@ -21,6 +21,7 @@ typedef struct
   const char *label_off;
   const char *label_on;
 } ToggleButton;
+
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
 static SDL_Surface *convert_grayscale(SDL_Surface *surface);
@@ -43,7 +44,6 @@ static bool save_surface_as_png(SDL_Surface *surface, const char *filepath);
 int main(int argc, char *argv[])
 {
 
-  // Verifica se o numero de argumentos da linha de comando esta correto.
   if (argc != 2)
   {
     fprintf(stderr, "Uso correto: %s <caminho_para_imagem.ext>\n", argv[0]);
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  TTF_Font *font = TTF_OpenFont("fonts/arial/arial.ttf", 16);
+  TTF_Font *font = TTF_OpenFont("fonts/arial.ttf", 16);
   if (!font)
   {
     fprintf(stderr, "Erro ao carregar fonte: %s\n", SDL_GetError());
@@ -77,10 +77,8 @@ int main(int argc, char *argv[])
 
   printf("Carregando a imagem de: %s\n", image_path);
 
-  // Tenta carregar a imagem do caminho especificado para uma superficie na memoria.
   SDL_Surface *image_surface = IMG_Load(image_path);
 
-  // Trata erro no carregamento da imagem (ex: arquivo nao encontrado, formato invalido).
   if (image_surface == NULL)
   {
     fprintf(stderr, "Erro ao carregar a imagem: %s\n", SDL_GetError());
@@ -92,13 +90,9 @@ int main(int argc, char *argv[])
 
   printf("Imagem carregada com sucesso. Dimensoes: %d x %d\n", image_surface->w, image_surface->h);
 
-  // ========== ETAPA 2 ========
-
-  // 2.1) imagem colorida ou escala de cinza?
   bool is_gray = surface_is_grayscale(image_surface);
   printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
 
-  // 2.2) conversao para escala de cinza (apenas se necessario)
   if (!is_gray)
   {
     SDL_Surface *converted = convert_grayscale(image_surface);
@@ -118,14 +112,9 @@ int main(int argc, char *argv[])
     printf("Imagem convertida para escala de cinza.\n");
   }
 
-  // 5.3) Superficies: base em cinza, cache equalizada e a atualmente exibida
   SDL_Surface *gray_surface = image_surface;
   SDL_Surface *eq_surface = NULL;
   SDL_Surface *current_surface = gray_surface;
-
-  // ========== ETAPA 3 ========
-
-  // 3.1 Criar janela principal
 
   SDL_Window *window = create_main_window(gray_surface);
   if (!window)
@@ -160,8 +149,6 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  // 3.2 Criar Janela Secundaria
-
   SDL_Window *secondary_window = create_secondary_window(window, 400, 400);
   if (!secondary_window)
   {
@@ -189,8 +176,6 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  // ========== ETAPA 4: Analise e exibicao do histograma =========
-
   int histogram[256];
   compute_histogram(current_surface, histogram);
 
@@ -204,12 +189,6 @@ int main(int argc, char *argv[])
 
   classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
 
-  // ========== ETAPA 5: Equalizacao do histograma ==========
-  // 5.1) Configuracao visual do botao
-  // 5.2) Interacoes do botao (hover/press/toggle)
-  // 5.3) Aplicar equalizacao (toggle, atualizar textura e analises)
-
-  // 5.1) Configuracao visual do botao de equalizacao
   ToggleButton equalize_button = {
       .rect = {0.0f, 0.0f, 200.0f, 44.0f},
       .hovered = false,
@@ -218,12 +197,8 @@ int main(int argc, char *argv[])
       .label_off = "Equalizar",
       .label_on = "Original"};
 
-  // 5.2) Estado de interacao do botao de equalizacao
   SDL_WindowID secondary_window_id = SDL_GetWindowID(secondary_window);
 
-  // Loop principal: eventos + render das duas janelas (imagem, histograma e botao)
-
-  // 5.2) Interacoes do botao e laco principal das janelas
   bool running = true;
   while (running)
   {
@@ -286,8 +261,6 @@ int main(int argc, char *argv[])
             SDL_Surface *previous_surface = current_surface;
             bool previous_toggle = equalize_button.toggled;
 
-            // 5.3) Equalizacao: gera LUT (a partir do hist base cinza),
-            //      cria/usa eq_surface, define desired_surface
             equalize_button.toggled = !equalize_button.toggled;
 
             SDL_Surface *desired_surface = gray_surface;
@@ -304,7 +277,6 @@ int main(int argc, char *argv[])
                 for (int i = 0; i < 256; i++)
                   total_base += hist_base[i];
 
-                // 5.3) Funcoes auxiliares de equalizacao (HE por CDF)
                 build_equalization_lut(hist_base, total_base, lut);
 
                 eq_surface = apply_equalization_lut(gray_surface, lut);
@@ -348,7 +320,7 @@ int main(int argc, char *argv[])
               if (texture)
                 SDL_DestroyTexture(texture);
               texture = new_texture;
-              // 5.3) Troca a superficie exibida e atualiza textura + analises
+
               current_surface = desired_surface;
 
               compute_histogram(current_surface, histogram);
@@ -433,7 +405,6 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(secondary_renderer);
   }
 
-  // 5.3) Cleanup: liberar cache equalizada se alocada
   if (eq_surface && eq_surface != gray_surface)
     SDL_DestroySurface(eq_surface);
 
