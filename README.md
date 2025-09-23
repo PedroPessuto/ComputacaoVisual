@@ -164,6 +164,7 @@ Sugestao de abordagem:
 
 ## Duvidas comuns
 - [Sumario](#sumario)
+<br>
 **A janela secundaria nao aparece. O que fazer?**
 Certifique-se de que ela nao abriu atras da janela principal; a posicao e calculada com base nos limites do monitor.
 <br>
