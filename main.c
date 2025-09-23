@@ -36,6 +36,8 @@ static void render_histogram(SDL_Renderer *renderer, int histogram[256], int wid
 static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y);
 static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button);
 static bool point_in_frect(const SDL_FRect *rect, float x, float y);
+static void build_equalization_lut(const int hist[256], int total_pixels, Uint8 lut[256]);
+static SDL_Surface *apply_equalization_lut(SDL_Surface *src, const Uint8 lut[256]);
 
 int main(int argc, char *argv[])
 {
@@ -112,11 +114,15 @@ int main(int argc, char *argv[])
     printf("Imagem convertida para escala de cinza.\n");
   }
 
+  SDL_Surface *gray_surface = image_surface;
+  SDL_Surface *eq_surface = NULL;
+  SDL_Surface *current_surface = gray_surface;
+
   // ========== ETAPA 3 ========
 
   //3.1 Criar janela principal
 
-  SDL_Window *window = create_main_window(image_surface);
+  SDL_Window *window = create_main_window(gray_surface);
   if(!window){
     SDL_DestroySurface(image_surface);
     TTF_CloseFont(font);
@@ -135,7 +141,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  SDL_Texture *texture = create_texture_from_surface(renderer, image_surface);
+  SDL_Texture *texture = create_texture_from_surface(renderer, current_surface);
   if(!texture){
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -176,7 +182,7 @@ int main(int argc, char *argv[])
 // ========== ETAPA 4: Analise e exibicao do histograma =========
 
   int histogram[256];
-  compute_histogram(image_surface, histogram);
+  compute_histogram(current_surface, histogram);
 
   int total_pixels_count;
   double mean_intensity;
@@ -251,7 +257,74 @@ int main(int argc, char *argv[])
           equalize_button.hovered = inside;
           if (was_pressed && inside)
           {
+            SDL_Surface *previous_surface = current_surface;
+            bool previous_toggle = equalize_button.toggled;
+
             equalize_button.toggled = !equalize_button.toggled;
+
+            SDL_Surface *desired_surface = gray_surface;
+
+            if (equalize_button.toggled)
+            {
+              if (!eq_surface)
+              {
+                int hist_base[256];
+                compute_histogram(gray_surface, hist_base);
+
+                Uint8 lut[256];
+                int total_base = 0;
+                for (int i = 0; i < 256; i++)
+                  total_base += hist_base[i];
+
+                build_equalization_lut(hist_base, total_base, lut);
+
+                eq_surface = apply_equalization_lut(gray_surface, lut);
+                if (!eq_surface)
+                {
+                  fprintf(stderr, "Falha ao gerar superficie equalizada: %s\n", SDL_GetError());
+                }
+              }
+
+              if (eq_surface)
+              {
+                desired_surface = eq_surface;
+              }
+              else
+              {
+                equalize_button.toggled = false;
+              }
+            }
+            else
+            {
+              desired_surface = gray_surface;
+            }
+
+            SDL_Texture *new_texture = NULL;
+            if (desired_surface)
+            {
+              new_texture = create_texture_from_surface(renderer, desired_surface);
+              if (!new_texture)
+              {
+                fprintf(stderr, "Falha ao atualizar textura apos toggle: %s\n", SDL_GetError());
+              }
+            }
+
+            if (!new_texture)
+            {
+              equalize_button.toggled = previous_toggle;
+              current_surface = previous_surface;
+            }
+            else
+            {
+              if (texture)
+                SDL_DestroyTexture(texture);
+              texture = new_texture;
+              current_surface = desired_surface;
+
+              compute_histogram(current_surface, histogram);
+              compute_histogram_stats(histogram, &total_pixels_count, &mean_intensity, &stddev_intensity);
+              classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
+            }
           }
         }
         break;
@@ -326,6 +399,9 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(secondary_renderer);
   }
   
+  if (eq_surface && eq_surface != gray_surface)
+    SDL_DestroySurface(eq_surface);
+
   SDL_DestroyTexture(texture);
   SDL_DestroyRenderer(renderer);
   SDL_DestroyWindow(window);
@@ -667,6 +743,130 @@ static void classify_histogram(double mean, double stddev, const char **brightne
   }else{
     *contrast_out = "Alto";
   }
+}
+
+static void build_equalization_lut(const int hist[256], int total_pixels, Uint8 lut[256])
+{
+  int cdf[256];
+  int acumulado = 0;
+  for (int i = 0; i < 256; i++)
+  {
+    acumulado += hist[i];
+    cdf[i] = acumulado;
+  }
+
+  int cdf_min = 0;
+  for (int i = 0; i < 256; i++)
+  {
+    if (cdf[i] > 0)
+    {
+      cdf_min = cdf[i];
+      break;
+    }
+  }
+
+  if (total_pixels <= 0 || cdf_min == 0 || total_pixels == cdf_min)
+  {
+    for (int i = 0; i < 256; i++)
+      lut[i] = (Uint8)i;
+    return;
+  }
+
+  const double denom = (double)(total_pixels - cdf_min);
+  for (int i = 0; i < 256; i++)
+  {
+    int numerador = cdf[i] - cdf_min;
+    if (numerador < 0)
+      numerador = 0;
+
+    double valor = ((double)numerador * 255.0) / denom;
+    int y = (int)(valor + 0.5);
+    if (y < 0) y = 0;
+    if (y > 255) y = 255;
+    lut[i] = (Uint8)y;
+  }
+}
+
+static SDL_Surface *apply_equalization_lut(SDL_Surface *src, const Uint8 lut[256])
+{
+  if (!src)
+  {
+    SDL_SetError("apply_equalization_lut: surface nula");
+    return NULL;
+  }
+
+  SDL_Surface *dst = SDL_DuplicateSurface(src);
+  if (!dst)
+  {
+    fprintf(stderr, "Falha ao duplicar a superficie para equalizacao: %s\n", SDL_GetError());
+    return NULL;
+  }
+
+  bool locked_src = false;
+  bool locked_dst = false;
+
+  if (SDL_MUSTLOCK(src))
+  {
+    if (!SDL_LockSurface(src))
+    {
+      fprintf(stderr, "Falha ao travar a superficie original para equalizacao: %s\n", SDL_GetError());
+      SDL_DestroySurface(dst);
+      return NULL;
+    }
+    locked_src = true;
+  }
+
+  if (SDL_MUSTLOCK(dst))
+  {
+    if (!SDL_LockSurface(dst))
+    {
+      fprintf(stderr, "Falha ao travar a superficie equalizada: %s\n", SDL_GetError());
+      if (locked_src)
+        SDL_UnlockSurface(src);
+      SDL_DestroySurface(dst);
+      return NULL;
+    }
+    locked_dst = true;
+  }
+
+  const int w = dst->w;
+  const int h = dst->h;
+
+  for (int y = 0; y < h; y++)
+  {
+    for (int x = 0; x < w; x++)
+    {
+      Uint8 r, g, b, a;
+      if (!SDL_ReadSurfacePixel(src, x, y, &r, &g, &b, &a))
+      {
+        fprintf(stderr, "Falha ao ler pixel (%d,%d) para equalizacao: %s\n", x, y, SDL_GetError());
+        goto fail;
+      }
+
+      Uint8 eq = lut[r];
+      if (!SDL_WriteSurfacePixel(dst, x, y, eq, eq, eq, a))
+      {
+        fprintf(stderr, "Falha ao escrever pixel (%d,%d) para equalizacao: %s\n", x, y, SDL_GetError());
+        goto fail;
+      }
+    }
+  }
+
+  if (locked_src)
+    SDL_UnlockSurface(src);
+  if (locked_dst)
+    SDL_UnlockSurface(dst);
+
+  return dst;
+
+fail:
+  if (locked_src)
+    SDL_UnlockSurface(src);
+  if (locked_dst)
+    SDL_UnlockSurface(dst);
+
+  SDL_DestroySurface(dst);
+  return NULL;
 }
 
 static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top){
