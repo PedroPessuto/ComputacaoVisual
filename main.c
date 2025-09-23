@@ -35,6 +35,7 @@ static void classify_histogram(double mean, double stddev, const char **brightne
 static void render_histogram(SDL_Renderer *renderer, int histogram[256], int width, int height, int top);
 static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text, int x, int y);
 static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button);
+static bool point_in_frect(const SDL_FRect *rect, float x, float y);
 
 int main(int argc, char *argv[])
 {
@@ -49,12 +50,12 @@ int main(int argc, char *argv[])
   const char *image_path = argv[1];
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
-  if (SDL_Init(SDL_INIT_VIDEO) < 0){
+  if (!SDL_Init(SDL_INIT_VIDEO)){
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
     return 1;
   }
 
-  if (TTF_Init() < 0){
+  if (!TTF_Init()){
     fprintf(stderr, "Erro ao inicializar SDL_ttf: %s\n", SDL_GetError());
     SDL_Quit();
     return 1;
@@ -172,9 +173,11 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+// ========== ETAPA 4: Analise e exibicao do histograma =========
+
   int histogram[256];
   compute_histogram(image_surface, histogram);
-  
+
   int total_pixels_count;
   double mean_intensity;
   double stddev_intensity;
@@ -183,6 +186,11 @@ int main(int argc, char *argv[])
   const char *brightness_classification = "";
   const char *contrast_classification = "";
 
+  classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
+
+  // ========== ETAPA 5: Equalizacao do histograma =========
+
+  // 5.1) Configuracao visual do botao de equalizacao
   ToggleButton equalize_button = {
     .rect = {0.0f, 0.0f, 200.0f, 44.0f},
     .hovered = false,
@@ -192,23 +200,70 @@ int main(int argc, char *argv[])
     .label_on = "Original"
   };
 
-  // ========== ETAPA 5: Equalizacao do histograma =========
-  classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
+  // 5.2) Estado de interacao do botao de equalizacao
+  SDL_WindowID secondary_window_id = SDL_GetWindowID(secondary_window);
 
-  // ========== ETAPA 4: Analise e exibicao do histograma =========
+  // Loop principal: eventos + render das duas janelas (imagem, histograma e botao)
 
-  //Loop de eventos para exibir a imagem
-
+  // 5.2) Interacoes do botao e laco principal das janelas
   bool running = true;
   while(running){
     SDL_Event e;
     while(SDL_PollEvent(&e)){
-      if(e.type == SDL_EVENT_QUIT){
+      switch (e.type)
+      {
+      case SDL_EVENT_QUIT:
+      case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         running = false;
-      }else if(e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED){
-        running = false;
-      }else if(e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE){
-        running = false;
+        break;
+      case SDL_EVENT_KEY_DOWN:
+        if (e.key.key == SDLK_ESCAPE)
+          running = false;
+        break;
+      case SDL_EVENT_MOUSE_MOTION:
+        if (e.motion.windowID == secondary_window_id)
+        {
+          float mx = (float)e.motion.x;
+          float my = (float)e.motion.y;
+          equalize_button.hovered = point_in_frect(&equalize_button.rect, mx, my);
+        }
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        if (e.button.windowID == secondary_window_id && e.button.button == SDL_BUTTON_LEFT)
+        {
+          float mx = (float)e.button.x;
+          float my = (float)e.button.y;
+          if (point_in_frect(&equalize_button.rect, mx, my))
+          {
+            equalize_button.pressed = true;
+            equalize_button.hovered = true;
+          }
+        }
+        break;
+      case SDL_EVENT_MOUSE_BUTTON_UP:
+        if (e.button.windowID == secondary_window_id && e.button.button == SDL_BUTTON_LEFT)
+        {
+          bool was_pressed = equalize_button.pressed;
+          equalize_button.pressed = false;
+          float mx = (float)e.button.x;
+          float my = (float)e.button.y;
+          bool inside = point_in_frect(&equalize_button.rect, mx, my);
+          equalize_button.hovered = inside;
+          if (was_pressed && inside)
+          {
+            equalize_button.toggled = !equalize_button.toggled;
+          }
+        }
+        break;
+      case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+        if (e.window.windowID == secondary_window_id)
+        {
+          equalize_button.hovered = false;
+          equalize_button.pressed = false;
+        }
+        break;
+      default:
+        break;
       }
     }
 
@@ -218,7 +273,6 @@ int main(int argc, char *argv[])
 
     int sec_w, sec_h;
     SDL_GetWindowSize(secondary_window, &sec_w, &sec_h);
-
     SDL_SetRenderDrawColor(secondary_renderer, 20, 20, 20, 255);
     SDL_RenderClear(secondary_renderer);
 
@@ -342,8 +396,8 @@ static SDL_Surface *convert_grayscale(SDL_Surface *surface)
         fprintf(stderr, "Falha ao ler pixel (%d,%d): %s\n", x, y, SDL_GetError());
         goto fail;
       }
-
-      const float grayf = 0.2126f * (float)r + 0.7152f * (float)g + 0.0722f * (float)b;
+        
+      const float grayf = 0.2125f * (float)r + 0.7154f * (float)g + 0.0721f * (float)b;
       const Uint8 gray = (Uint8)(grayf + 0.5f);
 
       if (!SDL_WriteSurfacePixel(dst, x, y, gray, gray, gray, a))
@@ -655,7 +709,7 @@ static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text
 
     SDL_Color white = {255, 255, 255, 255};
 
-    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, strlen(text), white);
+    SDL_Surface *text_surface = TTF_RenderText_Solid(font, text, 0, white);
     if (text_surface == NULL) {
         fprintf(stderr, "render_text: Erro ao criar surface do texto: %s\n", SDL_GetError());
         return;
@@ -712,3 +766,11 @@ static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const Tog
     render_text(renderer, font, label, (int)text_x, (int)text_y);
   }
 }
+static bool point_in_frect(const SDL_FRect *rect, float x, float y)
+{
+  if (!rect)
+    return false;
+
+  return (x >= rect->x && x <= rect->x + rect->w && y >= rect->y && y <= rect->y + rect->h);
+}
+
