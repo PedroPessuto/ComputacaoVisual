@@ -1,4 +1,4 @@
-// ========= EQUIPE =========
+﻿// ========= EQUIPE =========
 // Henrique Árabe Neres de Farias - 10410152
 // Ian Miranda da Cunha  - 10409669
 // Pedro Pessuto Rodrigues Ferreira - 10409729
@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
     printf("Imagem convertida para escala de cinza.\n");
   }
 
+  // 5.3) Superficies: base em cinza, cache equalizada e a atualmente exibida
   SDL_Surface *gray_surface = image_surface;
   SDL_Surface *eq_surface = NULL;
   SDL_Surface *current_surface = gray_surface;
@@ -194,7 +195,10 @@ int main(int argc, char *argv[])
 
   classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
 
-  // ========== ETAPA 5: Equalizacao do histograma =========
+  // ========== ETAPA 5: Equalizacao do histograma ==========
+  // 5.1) Configuracao visual do botao
+  // 5.2) Interacoes do botao (hover/press/toggle)
+  // 5.3) Aplicar equalizacao (toggle, atualizar textura e analises)
 
   // 5.1) Configuracao visual do botao de equalizacao
   ToggleButton equalize_button = {
@@ -259,7 +263,9 @@ int main(int argc, char *argv[])
           {
             SDL_Surface *previous_surface = current_surface;
             bool previous_toggle = equalize_button.toggled;
-
+            
+            // 5.3) Equalizacao: gera LUT (a partir do hist base cinza),
+            //      cria/usa eq_surface, define desired_surface
             equalize_button.toggled = !equalize_button.toggled;
 
             SDL_Surface *desired_surface = gray_surface;
@@ -276,6 +282,7 @@ int main(int argc, char *argv[])
                 for (int i = 0; i < 256; i++)
                   total_base += hist_base[i];
 
+                // 5.3) Funcoes auxiliares de equalizacao (HE por CDF)
                 build_equalization_lut(hist_base, total_base, lut);
 
                 eq_surface = apply_equalization_lut(gray_surface, lut);
@@ -319,6 +326,7 @@ int main(int argc, char *argv[])
               if (texture)
                 SDL_DestroyTexture(texture);
               texture = new_texture;
+              // 5.3) Troca a superficie exibida e atualiza textura + analises
               current_surface = desired_surface;
 
               compute_histogram(current_surface, histogram);
@@ -399,6 +407,7 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(secondary_renderer);
   }
   
+  // 5.3) Cleanup: liberar cache equalizada se alocada
   if (eq_surface && eq_surface != gray_surface)
     SDL_DestroySurface(eq_surface);
 
