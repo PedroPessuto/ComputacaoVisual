@@ -67,7 +67,7 @@ Aplicativo em C (C99+) usando SDL3, SDL_image e SDL_ttf que:
 - Atualiza textura da janela principal, histograma e metricas ao alternar.
 
 ## Compilacao
-
+- [Sumario](#sumario)
 Requisitos: SDL3, SDL_image e SDL_ttf instaladas e disponiveis via `pkg-config`.
 
 ### Linux/macOS
@@ -133,14 +133,14 @@ Se a fonte nao for encontrada, confira `fonts/arial/arial.ttf` ou ajuste o camin
 - Commits de suporte e documentacao em codigo.
 
 ## Decisoes tecnicas principais
-
+- [Sumario](#sumario)
 - API booleana do SDL3: `SDL_Init`/`TTF_Init` tratados como booleanos, com log de erro detalhado.
 - Conversao por luminancia seguindo o enunciado (coeficientes 0.2125/0.7154/0.0721) e preservacao do alpha.
 - Equalizacao global via CDF: LUT 0..255 com `cdf_min`, clamp e cache da superficie equalizada.
 - Atualizacao consistente: ao alternar, recria textura, histograma e metricas na janela secundaria.
 
 ## Limitacoes e proximos passos
-
+- [Sumario](#sumario)
 - Equalizacao global pode realcar ruido e gerar "efeito pente" - comportamento esperado.
 - Formatos de imagem pouco usuais nao foram testados.
 - Proximos passos sugeridos:
@@ -163,8 +163,9 @@ Sugestao de abordagem:
 - Fonte do painel: `fonts/arial/arial.ttf` - substitua por fonte adequada ao seu projeto se necessario.
 
 ## Duvidas comuns
-
+- [Sumario](#sumario)
 **A janela secundaria nao aparece. O que fazer?**
 Certifique-se de que ela nao abriu atras da janela principal; a posicao e calculada com base nos limites do monitor.
+<br>
 **O botao Equalizar nao muda nada. Como verificar?**
 Cheque o log do terminal: se a LUT nao puder ser gerada ou a superficie equalizada falhar, uma mensagem de erro sera emitida e o botao voltara ao estado original.
