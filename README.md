@@ -166,6 +166,5 @@ Sugestao de abordagem:
 - [Sumario](#sumario)
 #### A janela secundaria nao aparece. O que fazer?
 - Certifique-se de que ela nao abriu atras da janela principal; a posicao e calculada com base nos limites do monitor.
-<br>
 #### O botao Equalizar nao muda nada. Como verificar?
 - Cheque o log do terminal: se a LUT nao puder ser gerada ou a superficie equalizada falhar, uma mensagem de erro sera emitida e o botao voltara ao estado original.
