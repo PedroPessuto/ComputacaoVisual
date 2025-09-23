@@ -1,166 +1,152 @@
-# Processamento de Imagens com SDL3
+Projeto 1 – Processamento de Imagens
+📚 Disciplina
 
-Escala de cinza - Histograma - Equalizacao (HE por CDF)
-Aplicativo em C (C99+) usando SDL3, SDL_image e SDL_ttf que:
+Computação Visual – Ciência da Computação – Mackenzie – Turma 07N – 2025.2
 
-- Carrega imagens PNG/JPG/BMP informadas pela linha de comando.
-- Detecta se a imagem ja esta em escala de cinza; se nao, converte por luminancia.
-- Exibe a imagem na janela principal e um painel auxiliar em uma janela secundaria.
-- Renderiza histograma, media e desvio-padrao e classifica brilho/contraste.
-- Equaliza o histograma (CDF global) e alterna entre versao original e equalizada.
-- Permite salvar a imagem atualmente exibida em `output_image.png` com a tecla `S`.
+👥 Grupo
 
-## Sumario
+Henrique Árabe Neres de Farias – 10410152
 
-- [Processamento de Imagens com SDL3](#processamento-de-imagens-com-sdl3)
-  - [Sumario](#sumario)
-  - [Como funciona (visao por etapas)](#como-funciona-visao-por-etapas)
-    - [1) Carregamento de imagem](#1-carregamento-de-imagem)
-    - [2) Analise e conversao para escala de cinza](#2-analise-e-conversao-para-escala-de-cinza)
-    - [3) Interface com duas janelas (SDL3)](#3-interface-com-duas-janelas-sdl3)
-    - [4) Analise e exibicao do histograma](#4-analise-e-exibicao-do-histograma)
-    - [5) Equalizacao do histograma](#5-equalizacao-do-histograma)
-  - [Compilacao](#compilacao)
-    - [Linux/macOS](#linuxmacos)
-    - [Windows (MSYS2/MinGW sugerido)](#windows-msys2mingw-sugerido)
-  - [Execucao](#execucao)
-  - [Controles](#controles)
-  - [Estrutura do projeto](#estrutura-do-projeto)
-  - [Contribuicoes do grupo](#contribuicoes-do-grupo)
-    - [Henrique Arabe Neres de Farias - 10410152](#henrique-arabe-neres-de-farias---10410152)
-    - [Ian Miranda da Cunha - 10409669](#ian-miranda-da-cunha---10409669)
-    - [Pedro Pessuto Rodrigues Ferreira - 10409729](#pedro-pessuto-rodrigues-ferreira---10409729)
-  - [Decisoes tecnicas principais](#decisoes-tecnicas-principais)
-  - [Limitacoes e proximos passos](#limitacoes-e-proximos-passos)
-  - [Item 6 - Salvar imagem (reservado)](#item-6---salvar-imagem-reservado)
-  - [Licencas e creditos](#licencas-e-creditos)
-  - [Duvidas comuns](#duvidas-comuns)
+Ian Miranda da Cunha – 10409669
 
-## Como funciona (visao por etapas)
-- [Sumario](#sumario)
+Pedro Pessuto Rodrigues Ferreira – 10409729
 
-### 1) Carregamento de imagem
+🎯 Objetivo
 
-- Recebe o caminho da imagem via argumentos de linha de comando e carrega com `IMG_Load`.
-- Faz log do caminho, trata erros de carregamento e informa dimensoes.
+Este projeto tem como finalidade implementar, em linguagem C e utilizando a biblioteca SDL3, um software de processamento de imagens capaz de:
 
-### 2) Analise e conversao para escala de cinza
+Carregar arquivos de imagem nos formatos PNG, JPG e BMP
 
-- Verifica paleta ou percorre pixel a pixel para testar se `r == g == b`.
-- Converte para cinza quando necessario usando `Y = 0.2125*R + 0.7154*G + 0.0721*B`, arredondando e preservando o alpha.
-- A superficie em cinza passa a ser a base para as etapas seguintes.
+Detectar e converter imagens para escala de cinza
 
-### 3) Interface com duas janelas (SDL3)
+Calcular e exibir o histograma de intensidades
 
-- Janela principal exibe a imagem atual via textura, redimensionando para caber na area utilizavel do monitor.
-- Janela secundaria posicionada ao lado mostra o painel de metricas, histograma e botao.
+Mostrar métricas estatísticas (média e desvio padrão)
 
-### 4) Analise e exibicao do histograma
+Classificar a imagem em termos de brilho e contraste
 
-- Calcula histograma 0..255 da imagem em cinza.
-- Deriva media, desvio-padrao e classifica brilho (Escura/Media/Clara) e contraste (Baixo/Medio/Alto).
-- Renderiza histograma normalizado e textos com SDL_ttf.
+Equalizar o histograma e alternar entre a versão original e a equalizada
 
-### 5) Equalizacao do histograma
+Permitir o salvamento da imagem processada no arquivo output_image.png
 
-- Inclui botao "Equalizar/Original" com estados visuais (normal, hover, pressionado, toggled).
-- Constroi LUT pela CDF do histograma, gera superficie equalizada em cache e alterna sem recarregar o arquivo.
-- Atualiza textura da janela principal, histograma e metricas ao alternar.
+⚙️ Funcionamento
+🔹 Entrada
 
-## Compilacao
-- [Sumario](#sumario)
-Requisitos: SDL3, SDL_image e SDL_ttf instaladas e disponiveis via `pkg-config`.
+O programa recebe como argumento na linha de comando o caminho da imagem a ser carregada:
 
-### Linux/macOS
+./main.exe imagens/exemplo.png
 
-```sh
-gcc -std=c99 -O2 -Wall -Wextra -o app main.c \
-  $(pkg-config --cflags --libs sdl3 SDL3_image SDL3_ttf)
-```
+🔹 Janelas
 
-Algumas distribuicoes usam nomes minusculos nos pacotes:
+Janela Principal: exibe a imagem original ou equalizada.
 
-```sh
-gcc -std=c99 -O2 -Wall -Wextra -o app main.c \
-  $(pkg-config --cflags --libs sdl3 sdl3-image sdl3-ttf)
-```
+Janela Secundária: mostra o histograma, estatísticas, classificação de brilho/contraste e um botão de alternância.
 
-### Windows (MSYS2/MinGW sugerido)
+🔹 Funcionalidades
 
-1. Instale `mingw-w64-x86_64-SDL3`, `mingw-w64-x86_64-SDL3_image` e `mingw-w64-x86_64-SDL3_ttf`.
-2. Compile com GCC + pkg-config conforme comandos acima.
+Conversão automática para escala de cinza (quando necessário)
 
-## Execucao
+Histograma interativo, recalculado a cada alteração
 
-```sh
-./app caminho/para/imagem.png
-```
+Classificação de brilho:
 
-Se a fonte nao for encontrada, confira `fonts/arial/arial.ttf` ou ajuste o caminho em `main.c`.
+Escura: média < 85
 
-## Controles
+Média: 85 ≤ média < 170
 
-- Clique no botao (janela secundaria) para alternar entre Equalizar <-> Original.
-- `ESC` ou fechar qualquer janela encerra o programa.
-- `S` - salva a imagem exibida em `output_image.png` (sobrescreve).
+Clara: média ≥ 170
 
-## Estrutura do projeto
+Classificação de contraste:
 
-```text
-.
-|-- main.c
-`-- fonts/
-    `-- arial/
-        `-- arial.ttf
-```
+Baixo: desvio < 40
 
-## Contribuicoes do grupo
-- [Sumario](#sumario)
-### Henrique Arabe Neres de Farias - 10410152
+Médio: 40 ≤ desvio < 80
 
-- Etapas 1 e 3: inicializacao/finalizacao SDL3, carregamento com tratamento basico, janelas principal e secundaria.
-- Etapa 4: painel do histograma, integracao com SDL_ttf e ajustes de layout.
+Alto: desvio ≥ 80
 
-### Ian Miranda da Cunha - 10409669
+Equalização de histograma via LUT
 
-- Etapa 2: verificacao detalhada de escala de cinza e conversao por luminancia.
-- Etapa 4: refinamentos do painel do histograma e correcoes na renderizacao de texto.
-- Etapas 5.1-5.3: botao de equalizacao, estados visuais, LUT por CDF e toggle com atualizacao de metricas.
+Botão de alternância entre a versão original e a equalizada
 
-### Pedro Pessuto Rodrigues Ferreira - 10409729
+Salvamento rápido da imagem exibida pressionando a tecla S
 
-- Estrutura inicial do projeto, comentarios de equipe e primeira versao da conversao para cinza.
-- Checagem de paleta grayscale e ajustes auxiliares na conversao.
-- Commits de suporte e documentacao em codigo.
+📊 Processamento de Imagem
+🔹 Histograma
 
-## Decisoes tecnicas principais
-- [Sumario](#sumario)
-- API booleana do SDL3: `SDL_Init`/`TTF_Init` tratados como booleanos, com log de erro detalhado.
-- Conversao por luminancia seguindo o enunciado (coeficientes 0.2125/0.7154/0.0721) e preservacao do alpha.
-- Equalizacao global via CDF: LUT 0..255 com `cdf_min`, clamp e cache da superficie equalizada.
-- Atualizacao consistente: ao alternar, recria textura, histograma e metricas na janela secundaria.
+Cada pixel em tons de cinza (0–255) é contabilizado no vetor de frequências:
 
-## Limitacoes e proximos passos
-- [Sumario](#sumario)
-- Equalizacao global pode realcar ruido e gerar "efeito pente" - comportamento esperado.
-- Formatos de imagem pouco usuais nao foram testados.
-- Proximos passos sugeridos:
-  1. Implementar Item 6 (salvar imagem exibida).
-  2. Adicionar `--help` na CLI e permitir customizar fonte via argumento.
-  3. Criar Makefile com `pkg-config` para padronizar a compilacao.
+h(i) = quantidade de pixels com intensidade i
 
-## Item 6 - Salvar imagem (implementado)
 
-Ao pressionar `S`, o aplicativo salva a imagem atualmente exibida na janela principal (`current_surface`) em `output_image.png`, sobrescrevendo o arquivo se existir.
+O histograma é renderizado como 256 barras normalizadas na janela secundária.
 
-## Licencas e creditos
+🔹 Estatísticas
 
-- SDL3, SDL_image e SDL_ttf - consulte as licencas oficiais.
-- Fonte do painel: `fonts/arial/arial.ttf` - substitua por fonte adequada ao seu projeto se necessario.
+Média (µ):
 
-## Duvidas comuns
-- [Sumario](#sumario)
-#### A janela secundaria nao aparece. O que fazer?
-- Certifique-se de que ela nao abriu atras da janela principal; a posicao e calculada com base nos limites do monitor.
-#### O botao Equalizar nao muda nada. Como verificar?
-- Cheque o log do terminal: se a LUT nao puder ser gerada ou a superficie equalizada falhar, uma mensagem de erro sera emitida e o botao voltara ao estado original.
+µ = ( Σ(i=0→255) [ i * h(i) ] ) / ( Σ(i=0→255) h(i) )
+
+
+Variância (σ²):
+
+σ² = ( Σ(i=0→255) [ h(i) * (i - µ)² ] ) / ( Σ(i=0→255) h(i) )
+
+
+Desvio padrão (σ):
+Aproximado via Newton–Raphson para calcular √σ² sem uso de math.h.
+
+🔹 Equalização de Histograma
+
+Construção da CDF acumulada:
+
+cdf(i) = Σ(j=0→i) h(j)
+
+
+Geração da LUT de transformação:
+
+lut[i] = ((cdf(i) - cdf_min) * 255) / (N - cdf_min)
+
+
+Aplicação da LUT em cada pixel → obtendo a imagem equalizada.
+
+👨‍💻 Contribuições Individuais
+
+Henrique
+
+Item 1: Entrada do programa e carregamento da imagem
+
+Item 3: Criação das janelas principais e secundárias
+
+Item 4: Histograma, estatísticas, classificação e equalização
+
+Pedro
+
+Item 2: Conversão para escala de cinza e verificação da imagem
+
+Item 6: Salvamento da imagem processada
+
+Ian
+
+Item 2: Detecção de tons de cinza
+
+Item 5: Implementação da interação com o botão de alternância
+
+🚀 Compilação e Execução
+🔹 MacOS / Linux
+gcc -o main main.c $(pkgconf --cflags --libs sdl3 sdl3-image sdl3-ttf)
+./main imagens/exemplo.png
+
+🔹 Windows
+
+Baixar as bibliotecas SDL3, SDL3_image e SDL3_ttf
+
+Colocar as .dll na pasta do projeto
+
+Compilar com:
+
+gcc main.c -I<path_para_includes> -L<path_para_libs> -lSDL3 -lSDL3_image -lSDL3_ttf -o main.exe
+
+
+Executar:
+
+./main.exe img/exemplo.bmp
