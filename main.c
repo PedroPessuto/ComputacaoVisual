@@ -12,16 +12,19 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 
+// Estrutura do botão de alternância (toggle button) usado para equalizar/restaurar a imagem
 typedef struct
 {
-  SDL_FRect rect;
-  bool hovered;
-  bool pressed;
-  bool toggled;
-  const char *label_off;
-  const char *label_on;
+  SDL_FRect rect;           // área do botão
+  bool hovered;             // se o mouse está em cima
+  bool pressed;             // se está sendo pressionado
+  bool toggled;             // se está ativado (equalizado) ou não
+  const char *label_off;    // texto quando está desligado
+  const char *label_on;     // texto quando está ligado
 } ToggleButton;
 
+// Protótipos das funções auxiliares
+// (cada uma cuida de uma parte do processamento ou da interface)
 static bool is_palette_grayscale(const SDL_Palette *palette);
 static bool surface_is_grayscale(SDL_Surface *surface);
 static SDL_Surface *convert_grayscale(SDL_Surface *surface);
@@ -43,22 +46,25 @@ static bool save_surface_as_png(SDL_Surface *surface, const char *filepath);
 
 int main(int argc, char *argv[])
 {
-
+  // Confere se o usuário passou a imagem como argumento
   if (argc != 2)
   {
     fprintf(stderr, "Uso correto: %s <caminho_para_imagem.ext>\n", argv[0]);
     return 1;
   }
 
+  // Pega o caminho da imagem
   const char *image_path = argv[1];
   printf("O programa vai tentar carregar a imagem:  %s\n", image_path);
 
+  // Inicializa SDL
   if (!SDL_Init(SDL_INIT_VIDEO))
   {
     fprintf(stderr, "Erro ao inicializar a SDL: %s\n", SDL_GetError());
     return 1;
   }
 
+  // Inicializa SDL_ttf (para textos)
   if (!TTF_Init())
   {
     fprintf(stderr, "Erro ao inicializar SDL_ttf: %s\n", SDL_GetError());
@@ -66,6 +72,7 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  // Abre a fonte para renderizar textos
   TTF_Font *font = TTF_OpenFont("fonts/arial.ttf", 16);
   if (!font)
   {
@@ -75,10 +82,9 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  // Carrega a imagem fornecida
   printf("Carregando a imagem de: %s\n", image_path);
-
   SDL_Surface *image_surface = IMG_Load(image_path);
-
   if (image_surface == NULL)
   {
     fprintf(stderr, "Erro ao carregar a imagem: %s\n", SDL_GetError());
@@ -87,9 +93,9 @@ int main(int argc, char *argv[])
     SDL_Quit();
     return 1;
   }
-
   printf("Imagem carregada com sucesso. Dimensoes: %d x %d\n", image_surface->w, image_surface->h);
 
+  // Verifica se a imagem já é em tons de cinza, senão converte
   bool is_gray = surface_is_grayscale(image_surface);
   printf("A imagem eh [%s]\n", is_gray ? "CINZA" : "COLORIDA");
 
@@ -105,77 +111,26 @@ int main(int argc, char *argv[])
       SDL_Quit();
       return 1;
     }
-
     SDL_DestroySurface(image_surface);
     image_surface = converted;
     is_gray = true;
     printf("Imagem convertida para escala de cinza.\n");
   }
 
+  // Guarda superfícies de trabalho
   SDL_Surface *gray_surface = image_surface;
-  SDL_Surface *eq_surface = NULL;
-  SDL_Surface *current_surface = gray_surface;
+  SDL_Surface *eq_surface = NULL;       // versão equalizada
+  SDL_Surface *current_surface = gray_surface; // imagem exibida no momento
 
+  // Cria janelas e renderizadores
   SDL_Window *window = create_main_window(gray_surface);
-  if (!window)
-  {
-    SDL_DestroySurface(image_surface);
-    TTF_CloseFont(font);
-    TTF_Quit();
-    SDL_Quit();
-    return 1;
-  }
-
   SDL_Renderer *renderer = create_renderer(window);
-  if (!renderer)
-  {
-    SDL_DestroyWindow(window);
-    SDL_DestroySurface(image_surface);
-    TTF_CloseFont(font);
-    TTF_Quit();
-    SDL_Quit();
-    return 1;
-  }
-
   SDL_Texture *texture = create_texture_from_surface(renderer, current_surface);
-  if (!texture)
-  {
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_DestroySurface(image_surface);
-    TTF_CloseFont(font);
-    TTF_Quit();
-    SDL_Quit();
-    return 1;
-  }
 
   SDL_Window *secondary_window = create_secondary_window(window, 400, 400);
-  if (!secondary_window)
-  {
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_DestroySurface(image_surface);
-    TTF_CloseFont(font);
-    TTF_Quit();
-    SDL_Quit();
-    return 1;
-  }
-
   SDL_Renderer *secondary_renderer = create_secondary_renderer(secondary_window);
-  if (!secondary_renderer)
-  {
-    SDL_DestroyWindow(secondary_window);
-    SDL_DestroyTexture(texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_DestroySurface(image_surface);
-    TTF_CloseFont(font);
-    TTF_Quit();
-    SDL_Quit();
-    return 1;
-  }
 
+  // Calcula histograma inicial
   int histogram[256];
   compute_histogram(current_surface, histogram);
 
@@ -186,9 +141,9 @@ int main(int argc, char *argv[])
 
   const char *brightness_classification = "";
   const char *contrast_classification = "";
-
   classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
 
+  // Cria botão de equalização
   ToggleButton equalize_button = {
       .rect = {0.0f, 0.0f, 200.0f, 44.0f},
       .hovered = false,
@@ -199,6 +154,7 @@ int main(int argc, char *argv[])
 
   SDL_WindowID secondary_window_id = SDL_GetWindowID(secondary_window);
 
+  // Loop principal (eventos + renderização)
   bool running = true;
   while (running)
   {
@@ -207,27 +163,26 @@ int main(int argc, char *argv[])
     {
       switch (e.type)
       {
-      case SDL_EVENT_QUIT:
+      case SDL_EVENT_QUIT: // Fechar janela
       case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
         running = false;
         break;
-      case SDL_EVENT_KEY_DOWN:
+
+      case SDL_EVENT_KEY_DOWN: // Teclas
         if (e.key.key == SDLK_ESCAPE)
-          running = false;
+          running = false; // sai com ESC
         else if (e.key.key == SDLK_S)
         {
+          // salva imagem atual
           const char *out_path = "output_image.png";
           if (save_surface_as_png(current_surface, out_path))
-          {
             printf("Imagem salva em '%s'\n", out_path);
-          }
           else
-          {
             fprintf(stderr, "Falha ao salvar imagem em '%s': %s\n", out_path, SDL_GetError());
-          }
         }
         break;
-      case SDL_EVENT_MOUSE_MOTION:
+
+      case SDL_EVENT_MOUSE_MOTION: // mouse move sobre botão
         if (e.motion.windowID == secondary_window_id)
         {
           float mx = (float)e.motion.x;
@@ -235,7 +190,8 @@ int main(int argc, char *argv[])
           equalize_button.hovered = point_in_frect(&equalize_button.rect, mx, my);
         }
         break;
-      case SDL_EVENT_MOUSE_BUTTON_DOWN:
+
+      case SDL_EVENT_MOUSE_BUTTON_DOWN: // clique inicial
         if (e.button.windowID == secondary_window_id && e.button.button == SDL_BUTTON_LEFT)
         {
           float mx = (float)e.button.x;
@@ -247,7 +203,8 @@ int main(int argc, char *argv[])
           }
         }
         break;
-      case SDL_EVENT_MOUSE_BUTTON_UP:
+
+      case SDL_EVENT_MOUSE_BUTTON_UP: // soltar clique → ativa equalização
         if (e.button.windowID == secondary_window_id && e.button.button == SDL_BUTTON_LEFT)
         {
           bool was_pressed = equalize_button.pressed;
@@ -256,17 +213,19 @@ int main(int argc, char *argv[])
           float my = (float)e.button.y;
           bool inside = point_in_frect(&equalize_button.rect, mx, my);
           equalize_button.hovered = inside;
+
           if (was_pressed && inside)
           {
+            // troca entre equalizada e original
             SDL_Surface *previous_surface = current_surface;
             bool previous_toggle = equalize_button.toggled;
 
             equalize_button.toggled = !equalize_button.toggled;
-
             SDL_Surface *desired_surface = gray_surface;
 
             if (equalize_button.toggled)
             {
+              // gera equalização se ainda não existir
               if (!eq_surface)
               {
                 int hist_base[256];
@@ -278,51 +237,36 @@ int main(int argc, char *argv[])
                   total_base += hist_base[i];
 
                 build_equalization_lut(hist_base, total_base, lut);
-
                 eq_surface = apply_equalization_lut(gray_surface, lut);
-                if (!eq_surface)
-                {
-                  fprintf(stderr, "Falha ao gerar superficie equalizada: %s\n", SDL_GetError());
-                }
               }
-
               if (eq_surface)
-              {
                 desired_surface = eq_surface;
-              }
               else
-              {
                 equalize_button.toggled = false;
-              }
             }
             else
             {
               desired_surface = gray_surface;
             }
 
+            // Atualiza textura da janela principal
             SDL_Texture *new_texture = NULL;
             if (desired_surface)
-            {
               new_texture = create_texture_from_surface(renderer, desired_surface);
-              if (!new_texture)
-              {
-                fprintf(stderr, "Falha ao atualizar textura apos toggle: %s\n", SDL_GetError());
-              }
-            }
 
             if (!new_texture)
             {
+              // falhou, volta estado anterior
               equalize_button.toggled = previous_toggle;
               current_surface = previous_surface;
             }
             else
             {
-              if (texture)
-                SDL_DestroyTexture(texture);
+              if (texture) SDL_DestroyTexture(texture);
               texture = new_texture;
-
               current_surface = desired_surface;
 
+              // recalcula histograma
               compute_histogram(current_surface, histogram);
               compute_histogram_stats(histogram, &total_pixels_count, &mean_intensity, &stddev_intensity);
               classify_histogram(mean_intensity, stddev_intensity, &brightness_classification, &contrast_classification);
@@ -330,27 +274,32 @@ int main(int argc, char *argv[])
           }
         }
         break;
-      case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+
+      case SDL_EVENT_WINDOW_MOUSE_LEAVE: // mouse saiu da janela secundária
         if (e.window.windowID == secondary_window_id)
         {
           equalize_button.hovered = false;
           equalize_button.pressed = false;
         }
         break;
+
       default:
         break;
       }
     }
 
+    // Renderiza imagem principal
     SDL_RenderClear(renderer);
     SDL_RenderTexture(renderer, texture, NULL, NULL);
     SDL_RenderPresent(renderer);
 
+    // Renderiza janela secundária (histograma, botão e infos)
     int sec_w, sec_h;
     SDL_GetWindowSize(secondary_window, &sec_w, &sec_h);
     SDL_SetRenderDrawColor(secondary_renderer, 20, 20, 20, 255);
     SDL_RenderClear(secondary_renderer);
 
+    // Painel de informações
     const int text_panel_height = 110;
     const int text_padding = 12;
     const float button_height = 44.0f;
@@ -360,26 +309,23 @@ int main(int argc, char *argv[])
     SDL_FRect info_panel = {0, 0, (float)sec_w, (float)text_panel_height};
     SDL_RenderFillRect(secondary_renderer, &info_panel);
 
+    // Desenha histograma
     int histogram_height = sec_h - text_panel_height - text_padding - (int)(button_height + button_margin);
-    if (histogram_height < 10)
-      histogram_height = 10;
+    if (histogram_height < 10) histogram_height = 10;
     int histogram_top = text_panel_height + text_padding;
     render_histogram(secondary_renderer, histogram, sec_w, histogram_height, histogram_top);
 
+    // Ajusta botão
     float max_button_width = sec_w - 2.0f * button_margin;
-    if (max_button_width < 40.0f)
-      max_button_width = 40.0f;
+    if (max_button_width < 40.0f) max_button_width = 40.0f;
     float desired_button_width = 200.0f;
-    if (desired_button_width > max_button_width)
-      desired_button_width = max_button_width;
-    if (desired_button_width < 80.0f)
-      desired_button_width = max_button_width;
+    if (desired_button_width > max_button_width) desired_button_width = max_button_width;
+    if (desired_button_width < 80.0f) desired_button_width = max_button_width;
 
     equalize_button.rect.w = desired_button_width;
     equalize_button.rect.h = button_height;
     equalize_button.rect.x = (sec_w - equalize_button.rect.w) * 0.5f;
-    if (equalize_button.rect.x < button_margin)
-      equalize_button.rect.x = button_margin;
+    if (equalize_button.rect.x < button_margin) equalize_button.rect.x = button_margin;
     equalize_button.rect.y = histogram_top + histogram_height + button_margin;
     if (equalize_button.rect.y + equalize_button.rect.h > sec_h - button_margin)
       equalize_button.rect.y = sec_h - equalize_button.rect.h - button_margin;
@@ -388,8 +334,8 @@ int main(int argc, char *argv[])
 
     draw_toggle_button(secondary_renderer, font, &equalize_button);
 
+    // Mostra estatísticas
     char buffer[128];
-
     snprintf(buffer, sizeof(buffer), "Media: %.2f", mean_intensity);
     render_text(secondary_renderer, font, buffer, 12, 12);
 
@@ -405,6 +351,7 @@ int main(int argc, char *argv[])
     SDL_RenderPresent(secondary_renderer);
   }
 
+  // Libera recursos
   if (eq_surface && eq_surface != gray_surface)
     SDL_DestroySurface(eq_surface);
 
@@ -421,6 +368,7 @@ int main(int argc, char *argv[])
   printf("Programa finalizado com sucesso.\n");
   return 0;
 }
+
 
 static bool is_palette_grayscale(const SDL_Palette *palette)
 {
@@ -1005,22 +953,28 @@ static void render_text(SDL_Renderer *renderer, TTF_Font *font, const char *text
 
   SDL_DestroyTexture(text_texture);
 }
+
 static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const ToggleButton *button)
 {
   if (!button)
     return;
 
-  SDL_Color fill = button->toggled ? (SDL_Color){60, 120, 220, 255} : (SDL_Color){80, 80, 80, 255};
-  SDL_Color border = {200, 200, 200, 255};
+  SDL_Color fill;
 
   if (button->pressed)
   {
-    fill = (SDL_Color){50, 90, 170, 255};
+    fill = (SDL_Color){0, 0, 139, 255};
   }
   else if (button->hovered)
   {
-    fill = (SDL_Color){100, 100, 100, 255};
+    fill = (SDL_Color){135, 206, 250, 255};
   }
+  else
+  {
+    fill = (SDL_Color){0, 0, 255, 255};
+  }
+
+  SDL_Color border = {200, 200, 200, 255};
 
   SDL_SetRenderDrawColor(renderer, fill.r, fill.g, fill.b, fill.a);
   SDL_RenderFillRect(renderer, &button->rect);
@@ -1039,6 +993,7 @@ static void draw_toggle_button(SDL_Renderer *renderer, TTF_Font *font, const Tog
     render_text(renderer, font, label, (int)text_x, (int)text_y);
   }
 }
+
 static bool point_in_frect(const SDL_FRect *rect, float x, float y)
 {
   if (!rect)
